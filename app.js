@@ -11,6 +11,7 @@ console.log('MS routes loaded:')
 const WSRoutes = require('./routes/workspace'
 );
 const simRoutes = require('./routes/sim');
+const ConfigRoutes = require('./routes/configs');
 
 
 const app = express();
@@ -35,6 +36,7 @@ app.use('/api/modSchemes', MSRoutes );
 
 app.use('/api/workspaces', WSRoutes);
 app.use('/api/simulations', simRoutes);
+app.use('/api/configs', ConfigRoutes);
 //status code 404 handler
 app.use((req, res)=>{
     res.status(404).json({message: 'Route not found'});

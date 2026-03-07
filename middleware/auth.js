@@ -1,3 +1,5 @@
+//authorization middleware - 816028510, Matthias Mohamed
+
 const jwt = require('jsonwebtoken'); //library that creates and verifies JWT 
 const user = require('../models/User'); //require  user schema model in folder models
 

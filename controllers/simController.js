@@ -1,3 +1,7 @@
+//Simulation controller for runs
+//functions and debugging assistance provided by claudAI - Matthias Mohamed, 816028510, 25/02/2026
+//All other code done independently
+
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
@@ -7,6 +11,8 @@ const { error } = require('console');
 const AuditLog = require('../models/AuditLog');
 const Oservice = require('../services/OctaveService');
 const { logAudit } = require('../utils/auditLogger');
+const SimulationConfig = require('../models/SimulationConfig');
+const JobQueue = require('../services/Jobqueue');
 
 /*exports.runSimpleSimulation = async (req, res) => {
    const { schemeId, snr_db, symbol_rate = 1000000} = req.body //sample parameters
@@ -40,10 +46,33 @@ const { logAudit } = require('../utils/auditLogger');
 
 exports.runFullAnalysis = async (req, res) => {
   try {
-    //block to creat run record as first step
+    if (!req.body.configId){ //checks if configID provided in req body
+      return res.status(400).json({message: 'configId is required to run a simulation'}); //returns 400 if configID missing
+    }
+
+    //Load config from DB (must be in the same workspace)
+    const config = await SimulationConfig.findOne ({
+      config_id: req.body.configId,
+      workspace_id: req.workspaceId
+    });
+
+    if (!config) {
+      return res.status(404).json({message: 'Configuration not found or not in this workspace'}); //return 404 is config not found
+    }
+
+    const params = {
+      schemeId: config.scheme_id,
+      ...config.parameters,
+      ...req.body
+    }; //parameterer object for simulation, ... spreads params
+
+    delete params.configId; //deletes configID from params obj(not needed for sim)
+
+    //block to create run record in DB
     const run = await SimulationRun.create({
-      executor: req.user.id,
+      executor: req.user.id, //user is set as executor
       workspace_id: req.workspaceId,
+      config_id: req.body.configId,
       status: 'pending',
       startedAt: null,
       completedAt: null,
@@ -51,15 +80,34 @@ exports.runFullAnalysis = async (req, res) => {
       error: null
     });
 
+    const isAdaptive = req.body.is_adaptive === true || (await SimulationConfig.findOne({ config_id: req.body.configId}))?.is_adaptive === true; //checks if sim should be adaptive through reg body or adaptive flag set to true
+
+    JobQueue.addSimJob( //adds to job queue
+      run._id,
+      req.user.id,
+      workspaceId,
+      params,
+      isAdaptive //adaptive flag
+    ); 
+
     //message to client as soon as sim starts
     res.status(202).json({
       message: "Simulation started! We'll let you know when it's completed.",
-      runId: run._id.toString(),
+      runId: run._id.toString(), //returns runid as string
       checkStatusUrl: `/api/simulations/${run._id}/status`
-    });
+    }); //obv checks the run status
+
+    Oservice.processFullSim(run._id, req.user.id, req.workspaceId, params, isAdaptive) //octave service to run sim in bg
+    .catch(err => console.error('Background error:', err));
+
+  }catch (err) {
+    res.status(500).json({message: 'Failed to start simulation', error: err.message });
+  }
+}
 
     //Background task to mask it as running
-    (async () => {
+
+    /*(async () => {
       try {
     await SimulationRun.findByIdAndUpdate(run._id, {
       status: 'running',
@@ -79,7 +127,7 @@ exports.runFullAnalysis = async (req, res) => {
   }); */
   
   // Run Octave
-  const results = await Oservice.runSimulation(req.body);
+  /*const results = await Oservice.runSimulation(req.body);
 
   //save successful sim
   await SimulationRun.findByIdAndUpdate(run._id, {
@@ -100,7 +148,7 @@ exports.runFullAnalysis = async (req, res) => {
     details: {success: true}
   }); */
 
-}catch (err) {
+/*}catch (err) {
   console.error('Background simulation failed: ', err);
 
   await SimulationRun.findByIdAndUpdate(run._id, {
@@ -109,7 +157,7 @@ exports.runFullAnalysis = async (req, res) => {
     error: err.message || 'Unknown error'
   });
 
-  await logAudit(req.user.id, req.workspaceId, 'run', run._id.toString(), 'fail', {error: err.message});
+  await logAudit(req.user.id, req.workspaceId, 'run', run._id.toString(), 'fail', {error: err.message}); */
 
  /* await AuditLog.create({
     user_id: req.user.id,
@@ -119,13 +167,13 @@ exports.runFullAnalysis = async (req, res) => {
     action: 'fail',
     details: {error: err.message}
   }); */
-}
+/*}
     })();
 
   }catch (err) {
     res.status(500).json({message: 'Failed to queue simulation', error: err.message});
   }
-};
+}; 
 
  /* const {  //default values
     schemeId, 
@@ -270,26 +318,27 @@ exports.runFullAnalysis = async (req, res) => {
 
 */
 
-exports.deleteSimulation = async(req, res) => {
+exports.deleteSimulation = async(req, res) => { //export delete function
   try {
     const runId = req.params.id;
     const workspaceId = req.workspaceId;
 
-    const run = await SimulationRun.findOne({
+    const run = await SimulationRun.findOne({ //finfd the sim run by id and workspace id
       _id: runId,
       workspace_id: workspaceId
     });
 
     if (!run) {
-      return res.status(404).json({message: 'Simulation not found or not in this workspace'});
+      return res.status(404).json({message: 'Simulation not found or not in this workspace'}); // returns 404 if run does not exist
     }
     if (run.status === 'running') {
-      return res.status(400).json({message: 'Cannot delete a running simulation'});
+      return res.status(400).json({message: 'Cannot delete a running simulation'}); // checks if simulation is running atm
     }
 
-    await SimulationRun.deleteOne({_id: runId});
+    await SimulationRun.deleteOne({_id: runId}); //deletes the sim from the database
 
-    //Log in audit
+
+    //Log the deletion in audit log
     await logAudit(req.user.id, req.workspaceId,'run' , run._id.toString(), 'delete', {deletedRunStatus: run.status});
 
     /*await AuditLog.create({
@@ -305,36 +354,37 @@ exports.deleteSimulation = async(req, res) => {
       success: true,
       message: 'Simulation deleted',
       deletedId: runId
-    });
+    }); //returns success response and id of deleted run
   } catch (err) {
-    console.error('Delete simulation error:', err);
+    console.error('Delete simulation error:', err); //catches error and logs it
     res.status(500).json({message: 'Could not delete simulation', error: err.message});
-  }
+  } //returns 500 error is could not delete
 };
 
-exports.getSimulationStatus = async (req, res) => {
+exports.getSimulationStatus = async (req, res) => { //exports status check
   try {
-    const runId = req.params.id;
+    const runId = req.params.id; //Gets run ID from URL
 
-    const run = await SimulationRun.findOne({_id: runId, workspace_id: req.workspaceId})
-    .select('status results error startedAt completedAt executor');
+    const run = await SimulationRun.findOne({_id: runId, workspace_id: req.workspaceId}) //finds run by ID and workspace
+    .select('status results error startedAt completedAt executor'); //selects these specific fields
 
     if (!run) {
-      return res.status(404).json({messsage: 'Simulation not found or not in your workspace'});
+      return res.status(404).json({messsage: 'Simulation not found or not in your workspace'}); //return 404 if run not found
     }
 
     res.json ({
       success: true,
       status: run.status,
-      progress: run.status === 'completed' ? 100: run.status === 'running' ? 50:10,
+      progress: run.status === 'completed' ? 100: run.status === 'running' ? 50:10, //calcs progress , 10 for pending/failed, 50 running, 100 completed 
       results: run.results || null,
       error: run.error || null,
       startedAt: run.startedAt,
       completedAt: run.completedAt
     });
+
   } catch (err) {
     console.error ('Status fetch error:', err);
-    res.status(500).json({message: 'Error fetching simulation status', error: err.message});
+    res.status(500).json({message: 'Error fetching simulation status', error: err.message}); //returns 500 when cannot fetch or error fetching
   }
   };
 

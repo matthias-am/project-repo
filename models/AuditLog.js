@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
 
-const auditLogSchema = new mongoose.Schema({
+const auditLogSchema = new mongoose.Schema({ //creates a new mongoose schema for audit logs
     logId: {
         type: String,
-        default: () => new mongoose.Types.ObjectId().toString(),
+        default: () => new mongoose.Types.ObjectId().toString(), //generates a new mongoDB objectID and converts to string
         unique: true
     },
     userId: {
         type: String,
-        ref: 'User',
+        ref: 'User', //ref allows joining with the referenced collection when querying
         required: true
     },
     workspaceId: {

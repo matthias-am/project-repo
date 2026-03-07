@@ -46,6 +46,29 @@ const simulationConfigSchema = new mongoose.Schema({
         default: {}
     },
 
+//Adaptive modulation
+    is_adaptive: { 
+        type: Boolean, default: false
+
+    },
+
+    adaptive_settings: {
+        type: Map,
+        of: mongoose.Schema.Types.Mixed,
+        default: () => ({
+            /*target_ber: 1e-3,
+            snr_profile: 'linear',
+            min_snr_db: 0,
+            max_snr_sb: 30,
+            num_points: 100,*/
+        })
+    },
+
+    target_ber: {
+        type: Number, default: 1e-3
+    },
+    
+
     // for saving adaptive experiments
     parent_config_id: {
         type: String,

@@ -2,12 +2,13 @@ const {exec} = require('child_process');
 const util = require('util');
 const path = require('path');
 const { logAudit } = require('../utils/auditLogger');
+const validparams = require('../services/validParams')
 
 const execPromise = util.promisify(exec);
-const SimulationRun = ('../models/SimRun');
+const SimulationRun = require('../models/SimRun');
 const Auditlogger = ('../utils/auditLogger');
 
-function ValandNormParams(params) {
+/*function ValandNormParams(params) {
     if(!params.schemeId) throw new Error('schemeId is required (from config)');
 
     const scheme = params.schemeId.toLowerCase();
@@ -37,22 +38,22 @@ function ValandNormParams(params) {
         snr_step,
         num_bits: Math.max(10000, Number(params.num_bits ?? 100000)),
     };
-}
+} */
 
-let activeProcesses = 0;
-const MAX_CONCURRENT = 8;
+let activeProcesses = 0; //number of currently running octave processes
+const MAX_CONCURRENT = 8; //max number of concurrent Octave processes allowed
 
  async function runSimulation(valparams) { //params = {schemeId, snr_min, snr_max, num_bits etc
-        if (this.activeProcesses >= this.MAX_CONCURRENT) {
+        if (activeProcesses >= MAX_CONCURRENT) {
             throw new Error ('Server is busy. Please try again in a few seconds.');
-        }
+        } //checks if number of active process is greater than or equal to max
 
-        this.activeProcesses++;
+        activeProcesses++;
         try{
-        const scriptPath = path.join(__dirname, '../OctaveScripts/combinedCall.m');
+        const scriptPath = path.join(__dirname, '../OctaveScripts/combinedCall.m'); //builds path to Octave script
 
         let mod_type;
-        switch (params.schemeId?.toLowerCase()) {
+        switch (valparams.schemeId?.toLowerCase()) {
             case 'bpsk': mod_type = 'BPSK'; break;
             case 'qpsk': mod_type = 'QPSK'; break;
             case '16qam': mod_type = '16QAM'; break;
@@ -60,35 +61,36 @@ const MAX_CONCURRENT = 8;
             case '256qam': mod_type = '256QAM'; break;
             case '1024qam': mod_type = '1024QAM'; break;
             default: throw new Error('Unsupported modulation scheme');
-        }
+        } //maps lowercase scheme Ids to uppercase Octave-compatible names
 
         const snr_range = [];
-        for (let s = params.snr_min; s<= params.snr_max; s += params.snr_step) {
+        for (let s = valparams.snr_min; s<= valparams.snr_max; s += valparams.snr_step) {
             snr_range.push(s);
-        }
+        } //generates array of SNR values by step (min to max)
 
-        const snr_str = `[${snr_range.join(' ')}]`;
+        const snr_str = `[${snr_range.join(' ')}]`; //formats SNR array as Octave-style vector string
 
-        const cmd = `octave-cli --no-gui -q "${scriptPath}" "${mod_type}" "${snr_str}" ${params.num_bits} ${params.const_ebn0_db} ${params.num_symbols}`;
+        const cmd = `octave-cli --no-gui -q "${scriptPath}" "${mod_type}" "${snr_str}" ${valparams.num_bits} ${valparams.const_ebn0_db} ${valparams.num_symbols}`; //builds Octave command with all parameters
 
-        console.log('[OctaveService] Executing:', cmd);
+        console.log('[OctaveService] Executing:', cmd); //logs comand
 
-        const {stdout, stderr} = await execPromise(cmd, {timout: 180000});
+        const {stdout, stderr} = await execPromise(cmd, {timeout: 180000});
 
         if (stderr && !stderr.toLowerCase().includes('warning')) {
             console.error('[OctaveService] STDERR:', stderr);
-            throw new Error(`Octave execution failed: ${stderr.trim()}`); //give credit to AI here
-        }
+            throw new Error(`Octave execution failed: ${stderr.trim()}`); 
+        } //checks for errors (AI assisted function)
 
-        const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
-        const jsonStartIndex = lines.findIndex(l => l.startsWith('{'));
+        //AI assisted function
+        const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean); //parses stdout to find JSON output
+        const jsonStartIndex = lines.findIndex(l => l.startsWith('{')); 
         if (jsonStartIndex === -1) {
             console.log('[OctaveService] Full stdout was: \n', stdout); //Here too
             throw new Error('No JSON object found in Octave output');
-        }
+        } //Logs output if no JSON found
 
-        const jsonText = lines.slice(jsonStartIndex).join('\n');
-        let result = JSON.parse(jsonText);
+        const jsonText = lines.slice(jsonStartIndex).join('\n'); //extracts JSON portion from output
+        let result = JSON.parse(jsonText); //Json to object
 
         if (result.constellation) {
             const reshape =(flat) => {
@@ -100,41 +102,128 @@ const MAX_CONCURRENT = 8;
             };
             result.constellation.ideal = reshape(result.constellation.ideal || []);
             result.constellation.received = reshape(result.constellation.received || []);
-        }
+        } //converts to array of real, imag objects
 
-        return result;
-    } catch (err) {
-        console.error('[OctaveService] Failed: ', err);
-        throw err;
+        return result; //returns on success
+    } catch (err) { 
+        console.error('[OctaveService] Failed: ', err); //logs error
+        throw err; 
     } finally {
-        this.activeProcesses--;
-    }
+        activeProcesses--;
+    } 
 
     }
 
-    async function processFullSim(runId, userId, workspaceId, rawParams) {
+async function runAdaptive(valparams) { //
+        if (activeProcesses >= MAX_CONCURRENT) {
+            throw new Error('Server is busy. Please try again in a few seconds')
+        } //same as first func
+
+        activeProcesses++
         try {
-            await SimulationRun.findByIdAndUpdate(runId, {status: 'running', startedAt: new Date()});
+            const thresholds = {
+                'BPSK': 0,
+                'QPSK': 6,
+                '16QAM': 12,
+                '64QAM': 18,
+                '256QAM': 24,
+                '1024QAM': 30,
+            }; //SNR thresholds for each scheme
+            const schemes = Object.keys(thresholds);  //gets array of scheme names
+            scheme.sort((a, b) => thresholds[a] - thresholds[b]); //lowest to highest threshold
 
-            await logAudit(userId, workspaceId, 'run', runId, 'execute', { ...rawParams });
+            //result protection
+            const resultsPerSegment = [];
+            let overallBer = 0;
+            let totalBits =0;
 
-            const normedParams = ValandNormParams(rawParams);
 
-            const results = runSimulation(normedParams);
+            const snrRange = [];
+            for (let s = valparams.snr_min; s <= valparams.snr_max; s += valparams.snr_step) {
+                snrRange.push(s);
+            } //
+            let currentMod = 'BPSK'; //sets default mod
+            for (const snr of snrRange) {
+                //finds highest mod that SNR supports
+
+                let selectedMod = schemes[0];
+                for (let i = schemes.length - 1; i >= 0; i--){
+                    if (snr >= thresholds[schemes[i]])
+                    currentMod = schemes[i];
+                    break; //highest supported found
+                }
+            }
+            const segmentParams = {
+                valparams,
+                schemeId: currentMod.toLowerCase(),
+                snr_min: snr,
+                snr_max: snr,
+                snr_step: valparams.snr_step,
+            }; //parameters for single SNR point
+
+            const segmentResult = await runSimulation(segmentParams); //calls runsim for that point
+
+            resultsPerSegment.push({
+                snr,
+                mod: currentMod,
+                ber: segmentResult.ber || null,
+            }); //stores segment result
+
+            overallBer = totalBits > 0 ? overallBer /totalBits: 0;
+
+            return { //returns results
+                type: 'adaptive',
+                segments: resultsPerSegment,
+                overall_ber: overallBer,
+                note: 'Segmented adaptive switching based on SNR thresholds'
+            };
+        } catch (err) {
+            console.error('[OctaveService] Adaptive failed:', err);
+            throw err;
+        } finally {
+            activeProcesses--;
+        } //error handling
+    }
+    
+    module.exports = {
+        runSimulation,
+        runAdaptive,
+    };
+
+//complete function, called by controller
+    async function processFullSim(runId, userId, workspaceId, rawParams, isAdaptive) {
+        try {
+            await SimulationRun.findByIdAndUpdate(runId, {status: 'running', startedAt: new Date()}); //updates status to running
+
+            await logAudit(userId, workspaceId, 'run', runId, 'execute', { ...rawParams }); //logs execution
+
+            const normedParams = validparams.valandNormParams(rawParams); //validates and normalizes params
+
+            if (isAdaptive) {
+                console.log(`[processFullSim] Running ADAPTIVE simulation for run ${runId}`);
+                results = await runAdaptive(normedParams)
+            } else {
+                console.log(`[processFullSim] Running Fixed modulation simulation for run ${runId}`);
+                results = await runSimulation(normedParams);
+            }
+            
+
+            //const results = runSimulation(normedParams);
 
             await SimulationRun.findByIdAndUpdate(runId, {
                 status: 'completed',
                 completedAt: new Date(),
                 results
-            });
-            await logAudit(userId, workspaceId, 'run', runId, 'complete');
+            
+            }); //updates run as completed
+            await logAudit(userId, workspaceId, 'run', runId, 'complete'); //logs completion
         } catch(err) {
             await SimulationRun.findByIdAndUpdate(runId, {
                 status: 'failed',
                 completedAt: new Date(),
                 error: err.message
-            })
-            await logAudit(userId, workspaceId, 'run', runId, 'fail', {error: err.message});
+            }) //updates run as fauled on error
+            await logAudit(userId, workspaceId, 'run', runId, 'fail', {error: err.message}); //logs failure
         }
     }
     
@@ -268,4 +357,8 @@ const MAX_CONCURRENT = 8;
   
 }*/
 
-module.exports = new OctaveService();
+module.exports = { runSimulation,
+runAdaptive,
+processFullSim
+
+};
