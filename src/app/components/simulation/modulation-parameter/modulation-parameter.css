@@ -1,0 +1,19 @@
+.modulation-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.field-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.field-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #e6efd3;
+    margin-bottom: 6px;
+}
+
+.full-width { width: 100%; }

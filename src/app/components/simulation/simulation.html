@@ -1,0 +1,213 @@
+<div class="sim-wrapper">
+
+  <!-- ── Top navbar ──────────────────────────────────────────────────────── -->
+  <mat-toolbar class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="3" fill="#22d3ee"/>
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
+            stroke="#22d3ee" stroke-width="1.5" fill="none"/>
+          <path d="M2 12h4M18 12h4M12 2v4M12 18v4" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <span class="brand-name">ModSim Pro</span>
+        <span class="brand-sub">Digital Modulation Analysis</span>
+      </div>
+    </div>
+    <nav class="nav-links">
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      <a routerLink="/simulations" routerLinkActive="active">Simulations</a>
+      <a routerLink="/library" routerLinkActive="active">Library</a>
+    </nav>
+    <div class="nav-right">
+      <button mat-icon-button><mat-icon>help_outline</mat-icon></button>
+      <button mat-icon-button><mat-icon>account_circle</mat-icon></button>
+    </div>
+  </mat-toolbar>
+
+  <!-- ── Main layout ─────────────────────────────────────────────────────── -->
+  <div class="sim-body">
+
+    <!-- ── Left/Main content ──────────────────────────────────────────────── -->
+    <div class="sim-main">
+
+      <!-- Configuration Panel -->
+      <mat-card class="config-card" appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Simulation Configuration</mat-card-title>
+          <mat-card-subtitle>Configure parameters for digital modulation analysis</mat-card-subtitle>
+          <div class="card-actions">
+            <button mat-stroked-button class="action-btn" (click)="onShare()">
+              <mat-icon>share</mat-icon> Share
+            </button>
+            <button mat-stroked-button class="action-btn" (click)="onSave()">
+              <mat-icon>save</mat-icon> Save
+            </button>
+            <button mat-stroked-button class="action-btn" (click)="onExport()">
+              <mat-icon>download</mat-icon> Export
+            </button>
+            <button mat-icon-button class="action-btn"><mat-icon>settings</mat-icon></button>
+          </div>
+        </mat-card-header>
+
+        <mat-card-content>
+          <!-- Modulation scheme + method dropdowns -->
+          <app-modulation-parameter
+            [selectedScheme]="config.modulationScheme"
+            [selectedMethod]="config.method"
+            (schemeChange)="config.modulationScheme = $event"
+            (methodChange)="config.method = $event">
+          </app-modulation-parameter>
+
+          <!-- SNR, AWGN, Interference sliders -->
+          <app-snr-input
+            [snr]="config.snr"
+            [awgn]="config.awgn"
+            [interference]="config.interference"
+            (snrChange)="config.snr = +$event"
+            (awgnChange)="config.awgn = +$event"
+            (interferenceChange)="config.interference = +$event">
+          </app-snr-input>
+
+          <div class="run-row">
+            <button mat-flat-button class="btn-run" (click)="runSimulation()" [disabled]="isRunning">
+              @if (isRunning) {
+                <mat-spinner diameter="18"></mat-spinner>
+                <span>Running...</span>
+              } @else {
+                <ng-container>
+                <mat-icon>play_arrow</mat-icon>
+                <span>Run Simulation</span>
+                </ng-container>
+              }
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Collaboration indicator -->
+      @if (collaborators.length > 0) {
+        <div class="collab-bar">
+          <div class="collab-avatars">
+            @for (c of collaborators; track c.name) {
+              <div class="collab-avatar" [style.background]="c.color" [title]="c.name">
+                {{ c.initials }}
+              </div>
+            }
+          </div>
+          <mat-icon>people</mat-icon>
+          <span>{{ collaborators.length }} collaborators online</span>
+        </div>
+      }
+
+      <!-- Constellation Diagram -->
+      @if (hasResults) {
+        <mat-card class="chart-card" appearance="outlined">
+          <mat-card-header>
+            <mat-card-title>Constellation Diagram</mat-card-title>
+            <mat-card-subtitle>{{ config.modulationScheme }} — In-phase vs Quadrature</mat-card-subtitle>
+            <div class="card-actions">
+              <mat-slide-toggle [(ngModel)]="showDecisionBoundaries">Decision Boundaries</mat-slide-toggle>
+              <mat-slide-toggle [(ngModel)]="showDistances">Show Distances</mat-slide-toggle>
+            </div>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="chart-container">
+              <canvas id="constellationChart"></canvas>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- BER vs SNR Graph -->
+        <mat-card class="chart-card" appearance="outlined">
+          <mat-card-header>
+            <mat-card-title>Bit Error Rate vs SNR</mat-card-title>
+            <mat-card-subtitle>Performance comparison across modulation schemes</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="chart-container">
+              <canvas id="berChart"></canvas>
+            </div>
+            <div class="chart-note">
+              <mat-icon>info</mat-icon>
+              <span>Lower BER indicates better performance. Higher-order modulation schemes provide higher data rates but require higher SNR.</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Ready to simulate placeholder -->
+      @if (!hasResults) {
+        <div class="ready-placeholder">
+          <div class="ready-icon">
+            <mat-icon>chevron_right</mat-icon>
+          </div>
+          <h3>Ready to Simulate</h3>
+          <p>Configure parameters above and click "Run Simulation" to begin</p>
+        </div>
+      }
+
+    </div>
+
+    <!-- ── Right Sidebar ───────────────────────────────────────────────────── -->
+    <aside class="sim-sidebar">
+
+      <!-- Key Metrics -->
+      <div class="sidebar-section">
+        <div class="metric-card">
+          <span class="metric-label">Required SNR</span>
+          <span class="metric-value">{{ results.requiredSnr | number:'1.0-0' }} dB</span>
+          <mat-icon class="metric-icon signal">signal_cellular_alt</mat-icon>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Spectral Efficiency</span>
+          <span class="metric-value">{{ results.spectralEfficiency | number:'1.1-1' }} bps/Hz</span>
+          <mat-icon class="metric-icon speed">speed</mat-icon>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Error Rate</span>
+          <span class="metric-value">{{ results.errorRate | number:'1.0-2' }}</span>
+          <mat-icon class="metric-icon warn">warning_amber</mat-icon>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Processing Time</span>
+          <span class="metric-value">{{ results.processingTime }}s</span>
+          <mat-icon class="metric-icon ok">show_chart</mat-icon>
+        </div>
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <!-- Parameters Summary -->
+      <div class="sidebar-section">
+        <h4 class="sidebar-heading">PARAMETERS</h4>
+        <div class="param-row"><span>Modulation</span><span>{{ config.modulationScheme }}</span></div>
+        <div class="param-row"><span>SNR</span><span>{{ config.snr }} dB</span></div>
+        <div class="param-row"><span>AWGN (σ²)</span><span>{{ config.awgn }}</span></div>
+        <div class="param-row"><span>Interference</span><span>{{ config.interference }}</span></div>
+        <div class="param-row"><span>Method</span><span>{{ config.method }}</span></div>
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <!-- Execution Logs -->
+      <div class="sidebar-section">
+        <h4 class="sidebar-heading">EXECUTION LOGS</h4>
+        <div class="logs">
+          @for (log of executionLogs; track log.time) {
+            <div class="log-entry" [class.log-success]="log.type === 'success'" [class.log-error]="log.type === 'error'">
+              <span class="log-time">[{{ log.time }}]</span>
+              <span class="log-msg">{{ log.message }}</span>
+            </div>
+          }
+          @if (executionLogs.length === 0) {
+            <p class="log-empty">No logs yet</p>
+          }
+        </div>
+      </div>
+
+    </aside>
+  </div>
+</div>

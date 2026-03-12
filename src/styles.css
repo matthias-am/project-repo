@@ -1,4 +1,84 @@
-/* You can add global styles to this file, and also import other style files */
+/* ── Global Reset & Dark Theme ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+html, body {
+  height: 100%;
+  background-color: #0d1117;
+  color: #e6edf3;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
+
+/* Angular Material Dark Token Overrides (global)  */
+
+/* Toolbar */
+--mat-toolbar-container-background-color: #161b22;
+--mat-toolbar-container-text-color: #e6edf3;
+
+/* Cards */
+.mat-mdc-card {
+  --mdc-outlined-card-container-color: #161b22 !important;
+  --mdc-outlined-card-outline-color: #2a3444 !important;
+  background-color: #161b22 !important;
+  color: #e6edf3 !important;
+}
+
+.mat-mdc-card-title   { color: #e6edf3 !important; font-size: 16px !important; font-weight: 600 !important; }
+.mat-mdc-card-subtitle { color: #7d8590 !important; font-size: 13px !important; }
+
+/* Form fields */
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-container-shape: 8px;
+  --mdc-outlined-text-field-outline-color: #2a3444;
+  --mdc-outlined-text-field-hover-outline-color: #22d3ee;
+  --mdc-outlined-text-field-focus-outline-color: #22d3ee;
+  --mdc-outlined-text-field-label-text-color: #7d8590;
+  --mdc-outlined-text-field-input-text-color: #e6edf3;
+  --mdc-outlined-text-field-caret-color: #22d3ee;
+}
+
+/* Select panel */
+.mat-mdc-select-value { color: #e6edf3 !important; }
+.mat-mdc-select-arrow { color: #7d8590 !important; }
+.mat-mdc-option       { color: #e6edf3 !important; background-color: #1c2230 !important; }
+.mat-mdc-option:hover, .mat-mdc-option.mat-mdc-option-active {
+  background-color: #2a3444 !important;
+}
+.mdc-menu-surface, .mat-mdc-select-panel {
+  background-color: #1c2230 !important;
+  border: 1px solid #2a3444 !important;
+}
+
+/* Buttons */
+.mdc-button--outlined {
+  --mdc-outlined-button-outline-color: #2a3444;
+  --mdc-outlined-button-label-text-color: #e6edf3;
+}
+.mdc-button--outlined:hover {
+  --mdc-outlined-button-outline-color: #22d3ee;
+}
+
+/* Icon buttons */
+.mat-mdc-icon-button .mat-icon { color: #7d8590 !important; }
+.mat-mdc-icon-button:hover .mat-icon { color: #e6edf3 !important; }
+
+/* Divider */
+.mat-divider { border-color: #2a3444 !important; }
+
+/* Slide toggle */
+.mat-mdc-slide-toggle {
+  --mdc-switch-selected-track-color: #22d3ee;
+  --mdc-switch-selected-handle-color: #0d1117;
+  --mdc-switch-unselected-track-color: #2a3444;
+  --mdc-switch-unselected-handle-color: #7d8590;
+}
+.mat-mdc-slide-toggle .mdc-form-field label { color: #e6edf3 !important; font-size: 13px !important; }
+
+/* Spinner */
+.mat-mdc-progress-spinner circle { stroke: #0d1117 !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar              { width: 6px; height: 6px; }
+::-webkit-scrollbar-track        { background: #0d1117; }
+::-webkit-scrollbar-thumb        { background: #2a3444; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover  { background: #3d4f63; }

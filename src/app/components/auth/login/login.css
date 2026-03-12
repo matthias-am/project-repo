@@ -1,0 +1,329 @@
+/* login.component.css */
+
+/* ── Material M3 token overrides (scoped to this component) ─────────────────*/
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+
+  /* Card - force dark background */
+  --mdc-outlined-card-container-color: #1c2230;
+  --mdc-outlined-card-outline-color: #2a3444;
+  --mat-card-background-color: #1c2230;
+
+  /* Form fields */
+  --mdc-outlined-text-field-container-shape: 8px;
+  --mdc-outlined-text-field-outline-color: #2a3444;
+  --mdc-outlined-text-field-hover-outline-color: #22d3ee;
+  --mdc-outlined-text-field-focus-outline-color: #22d3ee;
+  --mdc-outlined-text-field-label-text-color: #7d8590;
+  --mdc-outlined-text-field-hover-label-text-color: #e6edf3;
+  --mdc-outlined-text-field-focus-label-text-color: #22d3ee;
+  --mdc-outlined-text-field-input-text-color: #e6edf3;
+  --mdc-outlined-text-field-caret-color: #22d3ee;
+  --mdc-outlined-text-field-container-color: #0d1117;
+  --mat-form-field-container-text-size: 14px;
+
+  /* Toolbar */
+  --mat-toolbar-container-background-color: #161b22;
+  --mat-toolbar-container-text-color: #e6edf3;
+
+  /* Flat button */
+  --mdc-filled-button-container-color: #22d3ee;
+  --mdc-filled-button-label-text-color: #0d1117;
+  --mdc-filled-button-disabled-container-color: rgba(34, 211, 238, 0.2);
+  --mdc-filled-button-disabled-label-text-color: rgba(13, 17, 23, 0.4);
+  --mdc-filled-button-container-shape: 8px;
+
+  /* Icon button */
+  --mdc-icon-button-icon-color: #7d8590;
+
+  /* Card text */
+  --mat-card-title-text-color: #e6edf3;
+  --mat-card-subtitle-text-color: #7d8590;
+
+  /* List */
+  --mdc-list-list-item-label-text-color: #7d8590;
+  --mdc-list-list-item-leading-icon-color: #22d3ee;
+
+  /* Chips */
+  --mdc-chip-container-shape-radius: 20px;
+  --mdc-chip-outline-color: #2a3444;
+  --mdc-chip-label-text-color: #7d8590;
+  --mdc-chip-elevated-container-color: rgba(125, 133, 144, 0.08);
+
+  /* Spinner */
+  --mdc-circular-progress-active-indicator-color: #0d1117;
+
+  /* Errors */
+  --mdc-outlined-text-field-error-outline-color: #f87171;
+  --mdc-outlined-text-field-error-focus-outline-color: #f87171;
+  --mdc-outlined-text-field-error-label-text-color: #f87171;
+  --mat-form-field-error-text-color: #f87171;
+}
+
+/* ── Force card background (Azure theme override) ────────────────────────────*/
+:host .login-card,
+:host mat-card.login-card {
+  background-color: #1c2230 !important;
+  border: 1px solid #2a3444 !important;
+  color: #e6edf3 !important;
+}
+
+:host mat-card-title {
+  color: #e6edf3 !important;
+}
+
+:host mat-card-subtitle {
+  color: #7d8590 !important;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────────*/
+.login-wrapper {
+  flex: 1;
+  background-color: #0d1117;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Animated background ─────────────────────────────────────────────────────*/
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-glow {
+  position: fixed;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 500px;
+  background: radial-gradient(ellipse, rgba(34, 211, 238, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────────────────────*/
+.topbar {
+  position: relative;
+  z-index: 10;
+  height: 56px !important;
+  min-height: 56px !important;
+  border-bottom: 1px solid #2a3444;
+  backdrop-filter: blur(8px);
+  background-color: rgba(22, 27, 34, 0.85) !important;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.brand-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e6edf3;
+  line-height: 1.2;
+}
+
+.brand-sub {
+  display: block;
+  font-size: 11px;
+  color: #7d8590;
+  line-height: 1.2;
+}
+
+/* ── Main layout ─────────────────────────────────────────────────────────────*/
+.login-main {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 64px;
+  padding: 48px 24px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .login-main {
+    flex-direction: column;
+    gap: 32px;
+  }
+}
+
+/* ── Card wrapper ────────────────────────────────────────────────────────────*/
+.card-wrapper {
+  width: 420px;
+  flex-shrink: 0;
+}
+
+/* ── Login card ──────────────────────────────────────────────────────────────*/
+.login-card {
+  width: 100%;
+  max-width: 420px !important;
+  animation: cardIn 0.4s ease both;
+  background-color: #1c2230 !important;
+  border: 1px solid #2a3444 !important;
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.shake {
+  animation: shake 0.5s ease !important;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+/* ── Alert ───────────────────────────────────────────────────────────────────*/
+.alert-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: #f87171;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.alert-error mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #f87171;
+}
+
+/* ── Form ────────────────────────────────────────────────────────────────────*/
+.full-width { width: 100%; }
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Force input text colour (Azure override) ────────────────────────────────*/
+:host input.mat-mdc-input-element {
+  color: #e6edf3 !important;
+  background: transparent !important;
+}
+
+/* ── Sign In button ──────────────────────────────────────────────────────────*/
+.btn-login {
+  margin-top: 8px !important;
+  height: 42px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background-color: #22d3ee !important;
+  color: #0d1117 !important;
+}
+
+.btn-login:not([disabled]):hover {
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.3) !important;
+}
+
+/* ── Card footer ─────────────────────────────────────────────────────────────*/
+.card-footer {
+  padding: 16px 16px 20px !important;
+  text-align: center;
+  border-top: 1px solid #2a3444;
+  margin-top: 8px;
+}
+
+.card-footer p {
+  font-size: 13px;
+  color: #7d8590;
+  margin: 0;
+}
+
+.card-footer a {
+  color: #22d3ee;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.card-footer a:hover { text-decoration: underline; }
+
+/* ── Info panel ──────────────────────────────────────────────────────────────*/
+.info-panel {
+  max-width: 360px;
+  animation: cardIn 0.4s 0.1s ease both;
+}
+
+@media (max-width: 900px) {
+  .info-panel {
+    max-width: 420px;
+    text-align: center;
+  }
+}
+
+.info-panel h2 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #e6edf3;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.info-panel > p {
+  font-size: 14px;
+  color: #7d8590;
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+/* ── Feature list ────────────────────────────────────────────────────────────*/
+.feature-list {
+  margin-bottom: 24px !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* ── Highlighted chip ────────────────────────────────────────────────────────*/
+.scheme-badges mat-chip[highlighted] {
+  --mdc-chip-elevated-container-color: rgba(34, 211, 238, 0.12);
+  --mdc-chip-outline-color: rgba(34, 211, 238, 0.4);
+  --mdc-chip-label-text-color: #22d3ee;
+}

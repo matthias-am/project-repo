@@ -1,0 +1,30 @@
+<div class="modulation-wrapper">
+    <div class="'field-group">
+        <label>Modulation Scheme</label>
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-select
+            [(ngModel)] = "selectedScheme"
+            (ngModelChange)="onSchemeChange($event)"
+            name="modulation">
+        <mat-option value="BPSK">BPSK</mat-option>
+         <mat-option value="QPSK">QPSK</mat-option> 
+         <mat-option value="16-QAM">16-QAM</mat-option>
+          <mat-option value="64-QAM">64-QAM</mat-option><mat-option value="256-QAM">256-QAM</mat-option><mat-option value="1024-QAM">1024-QAM</mat-option>
+        </mat-select>
+        </mat-form-field>
+    </div>
+
+    <div class="field-group">
+        <label>Simulation Method</label>
+        <mat-form-field appearance="outline" class="'full-width">
+            <mat-select
+            [(ngModel)] = "selectedMethod"
+            (ngModelChange)="onMethodChange($event)"
+            name="method">
+            <mat-option value = "Monte Carlo">Monte Carlo</mat-option>
+            <mat-option value ="Theoretical">Theoretical</mat-option>
+            <mat-option value = "Adaptive">Adaptive</mat-option>
+        </mat-select>
+        </mat-form-field>
+    </div>
+</div>
