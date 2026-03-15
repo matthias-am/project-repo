@@ -14,7 +14,7 @@ const modSchemeSchema = new mongoose.Schema ({
 
     family: {
         type: String, 
-        enum: ['PSK', 'QAM', 'OFDM', 'FSK'], 
+        enum: ['PSK', 'QAM', 'OFDM', 'FSK'], //not sure if implementing OFDM and FSK yet but putting just in case
         required: true
     },
 
@@ -30,7 +30,7 @@ const modSchemeSchema = new mongoose.Schema ({
 
     requiredParamNames: { 
         type: [String], 
-        default: ['symbol_rate', 'snr_min'] //FIND OUT IF TO ADD SNR_MAC
+        default: ['symbol_rate', 'snr_min', 'snr_max', 'snr_step', 'num_iterations', 'bits_per_symbol'] //FIND OUT IF TO ADD SNR_MAC
     }, 
     
     createdAt: {

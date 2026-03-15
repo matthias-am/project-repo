@@ -4,14 +4,14 @@ const configController = require('../controllers/SimConfigController');
 
 //Middleware and services
 const protect = require('../middleware/auth');
-const validateConfig = require('../services/validParams');
+const {valandNormParamsMiddleware} = require('../services/validParams');
 const checkWSAccess = require('../middleware/workspacePermission');
 
 router.use(protect);
 
 
 //create new config
-router.post('/', validateConfig.valandNormParams, checkWSAccess, configController.createConfig);
+router.post('/', valandNormParamsMiddleware, checkWSAccess, configController.createConfig);
 
 //get all configs for user
 router.get(
@@ -32,7 +32,7 @@ router.get(
 
 //get templates
 router.get(
-    'templates',
+    '/templates',
     configController.getTemplates
 );
 

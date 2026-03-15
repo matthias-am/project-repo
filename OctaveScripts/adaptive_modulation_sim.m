@@ -2,7 +2,7 @@ function results = adaptive_modulation_sim(params) %takes param structure as inp
 
 pkg load communications; %Octave communications package
 
-close all; %closes all open figures (done to prevent the 80 figures mishap from happening again)
+close all; %closes all open figures
 
 % Force numeric types from possible JSON strings
 params.snr_min          = double(params.snr_min);
@@ -17,176 +17,140 @@ for k = 1:numel(params.schemes)
     params.schemes(k).base_parameters.bits_per_symbol);
 end
 
-is_adaptive = params.is_adaptive; %extracts adaptive flag
-target_ber   = params.target_ber; 
-snr_profile  = params.snr_profile; %Type of SNR variation (linear, sinusoidal)
+is_adaptive = params.is_adaptive;
+target_ber  = params.target_ber;
+snr_profile = params.snr_profile;
 
 % Creates SNR values based on profile
-if strcmp(snr_profile, 'linear') %evenly spaced
+if strcmp(snr_profile, 'linear')
   snr_db_vec = linspace(params.snr_min, params.snr_max, params.num_points);
 elseif strcmp(snr_profile, 'sinusoidal')
-  snr_db_vec = 15 + 10 * sin(2*pi*(1:params.num_points)/50); %varies sinusoidally around 15dB
+  snr_db_vec = 15 + 10 * sin(2*pi*(1:params.num_points)/50);
 else
-  snr_db_vec = ones(1, params.num_points) * 15; % constant fallback
+  snr_db_vec = ones(1, params.num_points) * 15;
 end
 
-% Schemes from params (passed as array of structs)
-schemes = params.schemes;  % assume array of {display_name, snr_threshold_db, bits_per_symbol}
-
 % Sort schemes by threshold (lowest to highest)
+schemes = params.schemes;
 [~, idx] = sort([schemes.snr_threshold_db]);
 schemes = schemes(idx);
 
-results = struct(); %results struct with empty fields
-results.snr_db = snr_db_vec;
-results.used_mod = cell(1, length(snr_db_vec));
-results.ber = zeros(1, length(snr_db_vec));
+% Pre-allocate results
+results = struct();
+results.snr_db     = snr_db_vec;
+results.used_mod   = cell(1, length(snr_db_vec));
+results.ber        = zeros(1, length(snr_db_vec));
 results.throughput = zeros(1, length(snr_db_vec));
-% ^pre-allocated arrays
-total_bits = 0;
+
+total_bits   = 0;
 total_errors = 0;
 
-plotted_mods = {}; %tracks which mods already plotted
-for i = 1:length(snr_db_vec) %main loop over each SNR point
+% Constellation capture — record points from the LAST SNR point only
+% (using const_ebn0_db if provided, otherwise the midpoint SNR)
+if isfield(params, 'const_ebn0_db')
+  const_snr = double(params.const_ebn0_db);
+else
+  const_snr = snr_db_vec(max(1, floor(length(snr_db_vec)/2)));
+end
+
+const_num_symbols = 500; % enough points to show spread without being huge
+constellation_ideal    = [];  % Nx2: [real, imag]
+constellation_received = [];
+
+for i = 1:length(snr_db_vec)
   current_snr = snr_db_vec(i);
 
-  % Find highest modulation that satisfies target BER
-  chosen = schemes(1);  % fallback = lowest
+  % Find highest modulation scheme whose threshold the current SNR meets
+  chosen = schemes(1);
   for k = length(schemes):-1:1
-    thresh = schemes(k).snr_threshold_db;
-    if current_snr >= thresh
+    if current_snr >= schemes(k).snr_threshold_db
       chosen = schemes(k);
-      break; %selects highest mod that meets thresholds, starts from highest
+      break;
     end
   end
 
-  M = 2 ^ chosen.base_parameters.bits_per_symbol;  % modulation order, 4 → QPSK, 16 → 16QAM etc
-bps = int32(log2(M));
-  % Simple Monte-Carlo per point 
-  num_symbols = 1e5;  % adjust for accuracy vs speed
-  bits = randi([0 1], 1, num_symbols * double(bps)); %generates random bits and modulates
+  M   = 2 ^ chosen.base_parameters.bits_per_symbol;
+  bps = int32(log2(M));
 
-if M <= 4
-symbols = int32(bi2de(reshape(bits, double(bps), num_symbols)', 'left-msb'));
-mod_sig = pskmod(symbols, M); %PSK for lower orders
+  num_symbols = 1e5;
+  bits = randi([0 1], 1, num_symbols * double(bps));
 
-else
-symbols = int32(bi2de(reshape(bits, double(bps), num_symbols, )', 'left-msb'));
-mod_sig = qammod(symbols, M); %QAM for higher orders
-end
+  if M <= 4
+    symbols = int32(bi2de(reshape(bits, double(bps), num_symbols)', 'left-msb'));
+    mod_sig = pskmod(symbols, M);
+  else
+    symbols = int32(bi2de(reshape(bits, double(bps), num_symbols)', 'left-msb'));
+    mod_sig = qammod(symbols, M);
+  end
 
+  noisy = awgn(mod_sig, current_snr, 'measured');
 
-%plots constellation once per mod type
-if ~any(strcmp(plotted_mods, chosen.display_name)) 
-  plot_constellation(mod_sig, awgn(mod_sig, current_snr, 'measured'), chosen.display_name, current_snr);
-  plotted_mods{end+1} = chosen.display_name;
-end
+  if M <= 4
+    rx_syms = int32(pskdemod(noisy, M));
+  else
+    rx_syms = int32(qamdemod(noisy, M));
+  end
 
-noisy =awgn(mod_sig, current_snr, 'measured'); %adds noise to signal
-
-%demodulate recieved signal
-if M <= 4
-rx_syms = int32(pskdemod(noisy, M));
-else
-rx_syms = int32(qamdemod(noisy, M));
-end
-
-rx_bits = de2bi(rx_syms, double(bps), 'left-msb')';
-rx_bits = rx_bits(:)'; %symbols back to bits
-
-
+  rx_bits = de2bi(rx_syms, double(bps), 'left-msb')';
+  rx_bits = rx_bits(:)';
 
   errors = sum(bits ~= rx_bits);
-  ber = errors / length(bits); %Calc BER for this SNR point
+  ber    = errors / length(bits);
 
-  throughput = (1 - ber) * params.symbol_rate * log2(M);  % rough spectral efficiency * symbol rate
+  throughput = (1 - ber) * params.symbol_rate * log2(M);
 
-%stores results for this point
-  results.used_mod{i} = chosen.display_name;
-  results.ber(i) = ber;
-  results.throughput(i) = throughput; 
+  results.used_mod{i}   = chosen.display_name;
+  results.ber(i)        = ber;
+  results.throughput(i) = throughput;
 
   total_errors += errors;
-  total_bits += length(bits); %overall stats
+  total_bits   += length(bits);
+
+  % Capture constellation points at the target SNR point
+  if abs(current_snr - const_snr) < 0.01 || ...
+     (isempty(constellation_ideal) && i == length(snr_db_vec))
+
+    % Use a small dedicated batch for clean constellation points
+    bits_c = randi([0 1], 1, const_num_symbols * double(bps));
+
+    if M <= 4
+      syms_c   = int32(bi2de(reshape(bits_c, double(bps), const_num_symbols)', 'left-msb'));
+      ideal_c  = pskmod(syms_c, M);
+    else
+      syms_c   = int32(bi2de(reshape(bits_c, double(bps), const_num_symbols)', 'left-msb'));
+      ideal_c  = qammod(syms_c, M);
+    end
+
+    noisy_c = awgn(ideal_c, const_snr, 'measured');
+
+    constellation_ideal    = [real(ideal_c(:)), imag(ideal_c(:))];
+    constellation_received = [real(noisy_c(:)), imag(noisy_c(:))];
+  end
 end
 
-results.overall_ber = total_errors / total_bits; %BER across all points
+results.overall_ber    = total_errors / total_bits;
 results.avg_throughput = mean(results.throughput);
 
-snr_linear = 10.^(results.snr_db/10); %SNR db to linear
+% Spectral efficiency: bits/symbol of the last chosen scheme
+last_chosen_bps = chosen.base_parameters.bits_per_symbol;
+results.spectral_efficiency = last_chosen_bps; % bps/Hz
 
-figure;
-hold on;
+% Constellation as struct arrays for jsonencode compatibility
+n_ideal = size(constellation_ideal, 1);
+n_recv  = size(constellation_received, 1);
 
-semilogy(results.snr_db, results.ber, 'k-o', 'LineWidth', 2, 'DisplayName', 'Simulated BER'); %plots sim BER on log (semilogy)
+ideal_structs    = struct('real', num2cell(constellation_ideal(:,1)), ...
+                          'imag', num2cell(constellation_ideal(:,2)));
+received_structs = struct('real', num2cell(constellation_received(:,1)), ...
+                          'imag', num2cell(constellation_received(:,2)));
 
-%theoretical BER
-ber_bpsk = qfunc(sqrt(2*snr_linear));
-semilogy(results.snr_db, ber_bpsk, 'b--', 'LineWidth', 1.5, 'DisplayName', 'BPSK Theoretical');
-
-ber_qpsk = qfunc(sqrt(2*snr_linear));
-semilogy(results.snr_db, ber_qpsk, 'r--', 'LineWidth', 1.5, 'DisplayName', 'QPSK Theoretical');
-
-ber_16qam = (3/8)*erfc(sqrt(snr_linear/10));
-semilogy(results.snr_db, ber_16qam, 'g--', 'LineWidth', 1.5, 'DisplayName', '16QAM Theoretical');
-
-ber_64qam = (7/24)* erfc(sqrt(snr_linear/42));
-semilogy(results.snr_db, ber_64qam, 'm--', 'LineWidth', 1.5, 'DisplayName', '64QAM Theoretical');
-
-ber_256qam = (15/64) * erfc(sqrt(snr_linear/170));
-semilogy(results.snr_db, ber_256qam, 'c--', 'LineWidth', 1.5, 'DisplayName', '256QAM Theoretical');
-
-ber_1024qam = (31/160) * erfc(sqrt(snr_linear/682));
-semilogy(results.snr_db, ber_1024qam, 'y--', 'LineWidth', 1.5, 'DisplayName', '1024QAM Theoretical');
-
-%BER plot formatting
-xlabel('SNR(dB)');
-ylabel('Bit Error Rate(BER)');
-title('Simulated vs Theoretical BER');
-legend('Location', 'southwest');
-grid on;
-ylim([1e-6 1]);
-hold off;
-
-%throughput plot
-figure;
-plot(results.snr_db, results.throughput, 'm-s', 'LineWidth', 2);
-xlabel('SNR (dB)');
-ylabel('Throughput (bps)');
-title('Throughput vs SNR');
-grid on;
+results.constellation = struct( ...
+  'ideal',    ideal_structs, ...
+  'received', received_structs ...
+);
 
 endfunction
 
-%function for constellation plotting
-function plot_constellation(mod_sig, noisy, mod_name, snr)
-figure;
-
-%clean const plot
-subplot(1, 2, 1);
-plot(real(mod_sig), imag(mod_sig), 'b.', 'MarkerSize', 10);
-title(sprintf('%s - Clean', mod_name));
-xlabel('In-Phase');
-ylabel('Quadrature');
-grid on;
-axis equal;
-
-%noisy const plot
-subplot(1, 2, 2);
-plot(real(noisy), imag(noisy), 'r.', 'MarkerSize', 4);
-title(sprintf('%s - Noisy (SNR = %.1f dB)', mod_name, snr));
-xlabel('In-Phase');
-ylabel('Quadrature');
-grid on;
-axis equal;
-
-%plot title
-axes('Position', [0 0.95 1 0.05], 'Visible', 'off');
-text(0.5, 0.5, sprintf('Constellation Diagram - %s', mod_name), ... 
-'HorizontalAlignment', 'center', ... 
-'FontSize', 12, ... 
-'FontWeight', 'bold');
-endfunction
 
 %!test
 %! % Test 1: Basic execution and output fields exist
@@ -213,6 +177,8 @@ endfunction
 %! assert(isfield(r, 'avg_throughput'));
 %! assert(isfield(r, 'used_mod'));
 %! assert(isfield(r, 'snr_db'));
+%! assert(isfield(r, 'constellation'));
+%! assert(isfield(r, 'spectral_efficiency'));
 
 %!test
 %! % Test 2: SNR vector length matches num_points
@@ -277,24 +243,26 @@ endfunction
 %! assert(strcmp(r.used_mod{end}, '64QAM'));
 
 %!test
-%! % Test 5: Low SNR selects lowest modulation scheme
+%! % Test 5: Constellation field contains ideal and received
 %! pkg load communications;
 %! params = struct();
-%! params.snr_min      = 0;
-%! params.snr_max      = 4;
-%! params.num_points   = 5;
+%! params.snr_min      = 10;
+%! params.snr_max      = 10;
+%! params.num_points   = 1;
 %! params.symbol_rate  = 1e6;
 %! params.is_adaptive  = true;
 %! params.target_ber   = 1e-3;
 %! params.snr_profile  = 'linear';
+%! params.const_ebn0_db = 10;
 %! params.schemes = struct( ...
-%!   'display_name',     {'QPSK',  '16QAM'}, ...
-%!   'snr_threshold_db', {6,       12},      ...
-%!   'base_parameters',  {struct('bits_per_symbol', 2), ...
-%!                        struct('bits_per_symbol', 4)} ...
+%!   'display_name',     {'QPSK'}, ...
+%!   'snr_threshold_db', {6},      ...
+%!   'base_parameters',  {struct('bits_per_symbol', 2)} ...
 %! );
 %! r = adaptive_modulation_sim(params);
-%! assert(strcmp(r.used_mod{1}, 'QPSK'));
+%! assert(isfield(r.constellation, 'ideal'));
+%! assert(isfield(r.constellation, 'received'));
+%! assert(length(r.constellation.ideal) > 0);
 
 %!test
 %! % Test 6: Throughput is positive
@@ -354,4 +322,3 @@ endfunction
 %! );
 %! r = adaptive_modulation_sim(params);
 %! assert(all(r.snr_db == 15));
-

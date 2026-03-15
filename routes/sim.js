@@ -6,7 +6,7 @@ const protect = require('../middleware/auth');
 const requireWorkspaceAccess = require('../middleware/workspacePermission')
 
 //router.post('/run', protect, runSimpleSimulation);
-router.post('/fullAnalysis', protect, simctlr.runFullAnalysis)
+router.post('/fullAnalysis', protect, requireWorkspaceAccess('editor'), simctlr.runFullAnalysis)
 
 
 

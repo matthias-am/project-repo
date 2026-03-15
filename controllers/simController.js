@@ -85,7 +85,7 @@ exports.runFullAnalysis = async (req, res) => {
     JobQueue.addSimJob( //adds to job queue
       run._id,
       req.user.id,
-      workspaceId,
+      req.workspaceId,
       params,
       isAdaptive //adaptive flag
     ); 

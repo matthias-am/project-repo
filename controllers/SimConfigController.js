@@ -1,5 +1,5 @@
 const SimulationConfig = require('../models/SimulationConfig');
-const SimRun = require('../models/simController');
+const SimRun = require('../models/SimRun');
 const AuditLog = require('../models/AuditLog');
 const WSMember = require('../models/WSmem');
 const { trusted } = require('mongoose');
@@ -136,9 +136,11 @@ exports.getConfigsByWS = async(req, res) => {
             } //404 if config not found when looking for it by ID
 
             const newRun = await SimRun.create({ //create new simrun with the following
-                config_id: config.config_id,
-                executor_id: req.user.id,
+                configid: config.config_id,
+                executor: req.user.id,
+                workspaceId: req.workspaceId,
                 status: 'pending',
+                startedAt: null
             });
 
             await logAudit(req.user.id, config.workspace_id, config.config_id, 'config', config.config_id, 'execute', 

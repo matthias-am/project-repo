@@ -20,7 +20,7 @@ const requireWorkspaceAccess = (minRole = 'viewer') => async (req, res, next) =>
                 if (config) workspaceId =config.workspace_id; //sets worksapceId from config if found
             } else if (req.params.runId || req.params.id) { //checks if runid or id is provided
                 const run = await SimulationRun.findOne ({ run_id: req.params.runId || req.params.id }); //finds sim run by id
-                if (run && run.workspace_id) workspaceId = run.workspace_id; //sets workspaceId from run if found
+                if (run && run.workspaceId) workspaceId = run.workspaceId; //sets workspaceId from run if found
             }
         }
 
@@ -38,7 +38,7 @@ const requireWorkspaceAccess = (minRole = 'viewer') => async (req, res, next) =>
         } //checks if user is a member of workspace and returns 403 if they are not
         if (roleLevels[membership.role] < roleLevels[minRole]) { //checks if user role is sufficient
             return res.status(403).json ({
-                message: `Insufficient permissions. Minimum requiredL ${minRole}`
+                message: `Insufficient permissions. Minimum required ${minRole}`
             }); //returns 403 is user role not sufficient
         }
 
