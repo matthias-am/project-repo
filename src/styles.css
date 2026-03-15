@@ -1,4 +1,4 @@
-/* ── Global Reset & Dark Theme ───────────────────────────────────────────── */
+/* Global Reset & Dark Theme  */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
@@ -10,10 +10,11 @@ html, body {
 }
 
 /* Angular Material Dark Token Overrides (global)  */
+:root {
+  --mat-toolbar-container-background-color: #161b22;
 
-/* Toolbar */
---mat-toolbar-container-background-color: #161b22;
---mat-toolbar-container-text-color: #e6edf3;
+  --mat-toolbar-container-text-color: #e6edf3;
+}
 
 /* Cards */
 .mat-mdc-card {

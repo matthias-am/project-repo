@@ -68,7 +68,7 @@ export class LoginComponent {
         this.isLoading = false;
         this.loginError = true;
         this.errorMessage = err.status === 401
-          ? 'Invalid username or password.'
+          ? 'Invalid email or password.'
           : 'Server error. Please try again.';
 
         setTimeout(() => this.loginError = false, 600);

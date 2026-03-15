@@ -1,4 +1,3 @@
-
 import { Component, OnInit, OnDestroy, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -12,30 +11,33 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatInputModule } from '@angular/material/input';
+import { MatChipsModule } from '@angular/material/chips';
+import { Subscription } from 'rxjs';
 import { Chart, registerables } from 'chart.js';
+
 import { ModulationParameter } from './modulation-parameter/modulation-parameter';
 import { SnrInput } from './snr-input/snr-input';
-
-declare global { interface Math { erfc(x: number): number; } }
-Math.erfc = Math.erfc ?? ((x: number) => {
-  const t = 1 / (1 + 0.5 * Math.abs(x));
-  const tau = t * Math.exp(-x*x - 1.26551223 + t*(1.00002368 + t*(0.37409196 +
-    t*(0.09678418 + t*(-0.18628806 + t*(0.27886807 + t*(-1.13520398 +
-    t*(1.48851587 + t*(-0.82215223 + t*0.17087294)))))))));
-  return x >= 0 ? tau : 2 - tau;
-});
+import { SimulationService, SimulationResults, RunStatusResponse } from '../../services/simulation.service';
+import { WorkspaceService } from '../../services/workspace.service';
+import { Auth } from '../../services/auth';
 
 Chart.register(...registerables);
 
 export interface SimulationConfig {
   modulationScheme: string;
-  snr: number;
+  snr: number;        // used as const_ebn0_db
   awgn: number;
   interference: number;
   method: string;
+  snr_min: number;
+  snr_max: number;
+  snr_step: number;
+  num_bits: number;
+  num_symbols: number;
 }
 
-export interface SimulationResults {
+export interface DisplayResults {
   requiredSnr: number;
   spectralEfficiency: number;
   errorRate: number;
@@ -52,26 +54,32 @@ export interface Collaborator {
   name: string;
   initials: string;
   color: string;
+  status: 'active' | 'idle';
+  activity: string;
 }
+
+// Map UI scheme names to backend schemeIds
+const SCHEME_MAP: Record<string, string> = {
+  'BPSK':    'bpsk',
+  'QPSK':    'qpsk',
+  '16-QAM':  '16qam',
+  '64-QAM':  '64qam',
+  '256-QAM': '256qam',
+};
+
+const BITS_PER_SYMBOL: Record<string, number> = {
+  'BPSK': 1, 'QPSK': 2, '16-QAM': 4, '64-QAM': 6, '256-QAM': 8
+};
 
 @Component({
   selector: 'app-simulation',
   standalone: true,
   imports: [
-    CommonModule,
-    FormsModule,
-    RouterModule,
-    MatToolbarModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSlideToggleModule,
-    MatDividerModule,
-    ModulationParameter,
-    SnrInput
+    CommonModule, FormsModule, RouterModule,
+    MatToolbarModule, MatCardModule, MatFormFieldModule, MatSelectModule,
+    MatButtonModule, MatIconModule, MatProgressSpinnerModule,
+    MatSlideToggleModule, MatDividerModule, MatInputModule, MatChipsModule,
+    ModulationParameter, SnrInput
   ],
   templateUrl: './simulation.html',
   styleUrl: './simulation.css'
@@ -83,10 +91,15 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     snr: 10,
     awgn: 0.5,
     interference: 0.1,
-    method: 'Monte Carlo'
+    method: 'Monte Carlo',
+    snr_min: 0,
+    snr_max: 20,
+    snr_step: 2,
+    num_bits: 100000,
+    num_symbols: 3000,
   };
 
-  results: SimulationResults = {
+  results: DisplayResults = {
     requiredSnr: 0,
     spectralEfficiency: 0,
     errorRate: 0,
@@ -94,22 +107,63 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
   };
 
   executionLogs: LogEntry[] = [];
-  isRunning = false;
-  hasResults = false;
+  isRunning      = false;
+  hasResults     = false;
   showDecisionBoundaries = true;
-  showDistances = false;
+  showDistances  = false;
+
+  // Panel state
+  showSavePanel   = false;
+  showExportPanel = false;
+  showSharePanel  = false;
+
+  // Save panel
+  simulationName        = `QPSK Analysis - ${new Date().toLocaleDateString('en-CA')}`;
+  simulationDescription = '';
+  availableTags = ['BER Analysis', '4G', '5G', 'High SNR', 'Low SNR', 'QAM', 'PSK', 'Research', 'Teaching', 'Comparison'];
+  selectedTags:  string[] = [];
+  saveDone       = false;
+  saveError      = '';
+
+  // Export panel
+  exportFormat: 'json' | 'csv' | 'pdf' | 'png' = 'json';
+  exportIncludeParams  = true;
+  exportIncludeResults = true;
+  exportIncludeVisuals = true;
+
+  // Share panel
+  shareLink      = 'https://modsim.pro/share/x8po';
+  allowEditing   = true;
+  allowComments  = true;
+  shareTab: 'link' | 'invite' | 'users' = 'link';
+  inviteEmail    = '';
+  linkCopied     = false;
 
   collaborators: Collaborator[] = [
-    { name: 'Matthias Mohamed', initials: 'MM', color: '#06b6d4' },
-    { name: 'Lionel Messi', initials: 'LM', color: '#8b5cf6' },
-    { name: 'Lebron James', initials: 'LJ', color: '#ec4899' },
+    { name: 'Sarah Chen',        initials: 'SC', color: '#06b6d4', status: 'active', activity: 'Adjusting SNR parameter' },
+    { name: 'Michael Rodriguez', initials: 'MR', color: '#8b5cf6', status: 'active', activity: 'Viewing BER graph'        },
+    { name: 'Emily Watson',      initials: 'EW', color: '#ec4899', status: 'idle',   activity: 'Idle for 5 minutes'       },
   ];
 
-  private berChart: Chart | null = null;
+  private berChart:           Chart | null = null;
   private constellationChart: Chart | null = null;
-  private chartsInitialized = false;
+  private chartsInitialized  = false;
+  private pollSub?:           Subscription;
+  private currentRunId?:      string;
+  private rawResults?:        SimulationResults;
 
-  ngOnInit(): void {}
+  constructor(
+    private simService:  SimulationService,
+    private wsService:   WorkspaceService,
+    private auth:        Auth
+  ) {}
+
+  ngOnInit(): void {
+    // Ensure workspace is loaded
+    this.wsService.ensureWorkspace().subscribe({
+      error: () => this.addLog(this.now(), 'Could not load workspace', 'error')
+    });
+  }
 
   ngAfterViewChecked(): void {
     if (this.hasResults && !this.chartsInitialized) {
@@ -119,54 +173,119 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
   }
 
   ngOnDestroy(): void {
+    this.pollSub?.unsubscribe();
     this.berChart?.destroy();
     this.constellationChart?.destroy();
   }
 
+  // ── Run simulation ────────────────────────────────────────────────────────
   runSimulation(): void {
-    this.isRunning = true;
-    this.hasResults = false;
+    const workspaceId = this.wsService.activeWorkspaceId;
+    if (!workspaceId) {
+      this.addLog(this.now(), 'No workspace found. Please refresh and try again.', 'error');
+      return;
+    }
+
+    this.isRunning         = true;
+    this.hasResults        = false;
     this.chartsInitialized = false;
-    this.executionLogs = [];
+    this.executionLogs     = [];
     this.berChart?.destroy();
     this.constellationChart?.destroy();
 
-    const now = () => new Date().toLocaleTimeString('en-GB', { hour12: false });
+    this.addLog(this.now(), 'Creating simulation configuration...', 'info');
 
-    this.addLog(now(), 'Simulation initialized', 'info');
+    const schemeId = SCHEME_MAP[this.config.modulationScheme] ?? 'qpsk';
 
-    setTimeout(() => this.addLog(now(), `Processing ${this.config.method} iterations`, 'info'), 400);
-    setTimeout(() => this.addLog(now(), 'Computing BER values', 'info'), 800);
-    setTimeout(() => this.addLog(now(), 'Generating constellation points', 'info'), 1200);
-
-    setTimeout(() => {
-      this.results = this.computeResults();
-      this.addLog(now(), 'Simulation completed successfully', 'success');
-      this.isRunning = false;
-      this.hasResults = true;
-    }, 1800);
+    // Step 1: Create config
+    this.simService.createConfig({
+      name: `${this.config.modulationScheme} - ${new Date().toLocaleTimeString()}`,
+      scheme_id: schemeId,
+      workspaceId,
+      parameters: {
+        snr_min:       this.config.snr_min,
+        snr_max:       this.config.snr_max,
+        snr_step:      this.config.snr_step,
+        num_bits:      this.config.num_bits,
+        const_ebn0_db: this.config.snr,
+        num_symbols:   this.config.num_symbols,
+      }
+    }).subscribe({
+      next: (res) => {
+        this.addLog(this.now(), 'Configuration created, starting simulation...', 'info');
+        this.startRun(res.config.config_id, workspaceId);
+      },
+      error: (err) => {
+        this.isRunning = false;
+        this.addLog(this.now(), `Failed to create config: ${err.error?.message ?? err.message}`, 'error');
+      }
+    });
   }
 
-  private computeResults(): SimulationResults {
-    const snrLinear = Math.pow(10, this.config.snr / 10);
-    const bitsPerSymbol: Record<string, number> = {
-      'BPSK': 1, 'QPSK': 2, '16-QAM': 4, '64-QAM': 6, '256-QAM': 8
+  private startRun(configId: string, workspaceId: string): void {
+    // Step 2: Run from config
+    this.simService.runFromConfig(configId, workspaceId).subscribe({
+      next: (res) => {
+        this.currentRunId = res.run._id;
+        this.addLog(this.now(), 'Simulation queued, waiting for results...', 'info');
+        this.startPolling(this.currentRunId, workspaceId);
+      },
+      error: (err) => {
+        this.isRunning = false;
+        this.addLog(this.now(), `Failed to start run: ${err.error?.message ?? err.message}`, 'error');
+      }
+    });
+  }
+
+  private startPolling(runId: string, workspaceId: string): void {
+    this.pollSub?.unsubscribe();
+
+    this.pollSub = this.simService.pollStatus(runId, workspaceId).subscribe({
+      next: (status: RunStatusResponse) => {
+        this.updateLogsFromStatus(status);
+
+        if (status.status === 'completed' && status.results) {
+          this.rawResults = status.results;
+          this.applyResults(status.results);
+          this.isRunning  = false;
+          this.hasResults = true;
+          this.addLog(this.now(), 'Simulation completed successfully', 'success');
+          this.pollSub?.unsubscribe();
+        }
+
+        if (status.status === 'failed') {
+          this.isRunning = false;
+          this.addLog(this.now(), `Simulation failed: ${status.error ?? 'Unknown error'}`, 'error');
+          this.pollSub?.unsubscribe();
+        }
+      },
+      error: (err) => {
+        this.isRunning = false;
+        this.addLog(this.now(), 'Error checking simulation status', 'error');
+      }
+    });
+  }
+
+  private updateLogsFromStatus(status: RunStatusResponse): void {
+    if (status.status === 'running' &&
+        !this.executionLogs.some(l => l.message.includes('Processing'))) {
+      this.addLog(this.now(), `Processing ${this.config.method} iterations`, 'info');
+    }
+  }
+
+  private applyResults(raw: SimulationResults): void {
+    const bits = BITS_PER_SYMBOL[this.config.modulationScheme] ?? 2;
+
+    // overall_ber is the aggregate BER across all SNR points from Octave
+    this.results = {
+      requiredSnr:        this.config.snr,
+      spectralEfficiency: (raw as any).spectral_efficiency ?? bits,
+      errorRate:          (raw as any).overall_ber ?? (raw.ber?.[(raw.ber?.length ?? 1) - 1] ?? 0),
+      processingTime:     (raw as any).processing_time ?? 0,
     };
-    const bits = bitsPerSymbol[this.config.modulationScheme] || 2;
-    const ber = (0.5 * Math.exp(-snrLinear / (2 * this.config.awgn))) + this.config.interference * 0.01;
-
-    return {
-      requiredSnr: this.config.snr,
-      spectralEfficiency: bits,
-      errorRate: Math.max(ber, 1e-7),
-      processingTime: parseFloat((1.2 + Math.random() * 0.8).toFixed(1))
-    };
   }
 
-  private addLog(time: string, message: string, type: 'info' | 'success' | 'error'): void {
-    this.executionLogs.push({ time, message, type });
-  }
-
+  // ── Charts ────────────────────────────────────────────────────────────────
   private initCharts(): void {
     setTimeout(() => {
       this.initBerChart();
@@ -178,63 +297,34 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     const canvas = document.getElementById('berChart') as HTMLCanvasElement;
     if (!canvas) return;
 
-    const snrValues = Array.from({ length: 21 }, (_, i) => i - 5);
+    this.berChart?.destroy();
 
-    const berCurve = (snr: number, bits: number) => {
-      const snrLin = Math.pow(10, snr / 10);
-      return 0.5 * Math.erfc(Math.sqrt(snrLin / bits));
-    };
+    const raw = this.rawResults;
+    // Octave outputs snr_db, not snr_values
+    const snrValues = (raw as any)?.snr_db ?? raw?.snr_values ?? Array.from({ length: 21 }, (_, i) => i - 5);
+    const berValues = raw?.ber ?? [];
 
     this.berChart = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: snrValues.map(v => `${v}`),
-        datasets: [
-          {
-            label: 'BPSK',
-            data: snrValues.map(s => berCurve(s, 1)),
-            borderColor: '#22d3ee',
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.4
-          },
-          {
-            label: 'QPSK',
-            data: snrValues.map(s => berCurve(s, 2)),
-            borderColor: '#818cf8',
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.4
-          },
-          {
-            label: '16-QAM',
-            data: snrValues.map(s => berCurve(s, 4)),
-            borderColor: '#a78bfa',
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.4
-          }
-        ]
+        labels: snrValues.map((v: number) => `${v}`),
+        datasets: [{
+          label: this.config.modulationScheme,
+          data: berValues,
+          borderColor: '#22d3ee',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.4
+        }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          x: {
-            title: { display: true, text: 'SNR (dB)', color: '#7d8590' },
-            ticks: { color: '#7d8590' },
-            grid: { color: 'rgba(125,133,144,0.15)' }
-          },
-          y: {
-            type: 'logarithmic',
-            title: { display: true, text: 'Bit Error Rate (BER)', color: '#7d8590' },
-            ticks: { color: '#7d8590' },
-            grid: { color: 'rgba(125,133,144,0.15)' }
-          }
+          x: { title: { display: true, text: 'SNR (dB)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' } },
+          y: { type: 'logarithmic', title: { display: true, text: 'Bit Error Rate (BER)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' } }
         },
-        plugins: {
-          legend: { labels: { color: '#e6edf3' } }
-        }
+        plugins: { legend: { labels: { color: '#e6edf3' } } }
       }
     });
   }
@@ -243,84 +333,130 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     const canvas = document.getElementById('constellationChart') as HTMLCanvasElement;
     if (!canvas) return;
 
-    const points = this.generateConstellationPoints();
+    this.constellationChart?.destroy();
+
+    const raw         = this.rawResults;
+    const idealPts    = raw?.constellation?.ideal    ?? [];
+    const receivedPts = raw?.constellation?.received ?? [];
+
+    const toXY = (pts: { real: number; imag: number }[]) =>
+      pts.map(p => ({ x: p.real, y: p.imag }));
+
+    const datasets = [];
+
+    if (receivedPts.length > 0) {
+      datasets.push({
+        label: 'Received',
+        data: toXY(receivedPts),
+        backgroundColor: 'rgba(34,211,238,0.6)',
+        pointRadius: 4,
+        pointHoverRadius: 6
+      });
+    }
+
+    if (idealPts.length > 0) {
+      datasets.push({
+        label: 'Ideal',
+        data: toXY(idealPts),
+        backgroundColor: 'rgba(248,113,113,0.8)',
+        pointRadius: 6,
+        pointHoverRadius: 8
+      });
+    }
 
     this.constellationChart = new Chart(canvas, {
       type: 'scatter',
-      data: {
-        datasets: [{
-          label: this.config.modulationScheme,
-          data: points,
-          backgroundColor: 'rgba(34, 211, 238, 0.7)',
-          pointRadius: 5,
-          pointHoverRadius: 7
-        }]
-      },
+      data: { datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          x: {
-            title: { display: true, text: 'In-phase (I)', color: '#7d8590' },
-            ticks: { color: '#7d8590' },
-            grid: { color: 'rgba(125,133,144,0.15)' },
-            min: -1.5, max: 1.5
-          },
-          y: {
-            title: { display: true, text: 'Quadrature (Q)', color: '#7d8590' },
-            ticks: { color: '#7d8590' },
-            grid: { color: 'rgba(125,133,144,0.15)' },
-            min: -1.5, max: 1.5
-          }
+          x: { title: { display: true, text: 'In-phase (I)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' }, min: -1.5, max: 1.5 },
+          y: { title: { display: true, text: 'Quadrature (Q)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' }, min: -1.5, max: 1.5 }
         },
-        plugins: {
-          legend: { labels: { color: '#e6edf3' } }
-        }
+        plugins: { legend: { labels: { color: '#e6edf3' } } }
       }
     });
   }
 
-  private generateConstellationPoints(): { x: number; y: number }[] {
-    const noise = () => (Math.random() - 0.5) * this.config.awgn * 0.3;
-    const pts: { x: number; y: number }[] = [];
-    const scheme = this.config.modulationScheme;
+  // ── Panel actions ─────────────────────────────────────────────────────────
+  onShare():  void { this.closeAllPanels(); this.showSharePanel  = true; }
+  onSave():   void { this.closeAllPanels(); this.showSavePanel   = true; this.saveDone = false; this.saveError = ''; }
+  onExport(): void { this.closeAllPanels(); this.showExportPanel = true; }
 
-    const basePoints: Record<string, { x: number; y: number }[]> = {
-      'BPSK': [{ x: -1, y: 0 }, { x: 1, y: 0 }],
-      'QPSK': [{ x: -1, y: 1 }, { x: 1, y: 1 }, { x: -1, y: -1 }, { x: 1, y: -1 }],
-      '16-QAM': [
-        { x: -1, y: 1 }, { x: -0.33, y: 1 }, { x: 0.33, y: 1 }, { x: 1, y: 1 },
-        { x: -1, y: 0.33 }, { x: -0.33, y: 0.33 }, { x: 0.33, y: 0.33 }, { x: 1, y: 0.33 },
-        { x: -1, y: -0.33 }, { x: -0.33, y: -0.33 }, { x: 0.33, y: -0.33 }, { x: 1, y: -0.33 },
-        { x: -1, y: -1 }, { x: -0.33, y: -1 }, { x: 0.33, y: -1 }, { x: 1, y: -1 }
-      ],
-      '64-QAM': (() => {
-        const p = [];
-        for (let i = 0; i < 8; i++)
-          for (let j = 0; j < 8; j++)
-            p.push({ x: -1 + i * (2 / 7), y: -1 + j * (2 / 7) });
-        return p;
-      })(),
-      '256-QAM': (() => {
-        const p = [];
-        for (let i = 0; i < 16; i++)
-          for (let j = 0; j < 16; j++)
-            p.push({ x: -1 + i * (2 / 15), y: -1 + j * (2 / 15) });
-        return p;
-      })()
-    };
-
-    const base = basePoints[scheme] || basePoints['QPSK'];
-    base.forEach(p => {
-      for (let i = 0; i < 8; i++) {
-        pts.push({ x: p.x + noise(), y: p.y + noise() });
-      }
-    });
-
-    return pts;
+  closeAllPanels(): void {
+    this.showSavePanel = false;
+    this.showExportPanel = false;
+    this.showSharePanel = false;
   }
 
-  onShare(): void { console.log('Share clicked'); }
-  onSave(): void { console.log('Save clicked'); }
-  onExport(): void { console.log('Export clicked'); }
+  // ── Save panel ────────────────────────────────────────────────────────────
+  toggleTag(tag: string):       void { const i = this.selectedTags.indexOf(tag); i >= 0 ? this.selectedTags.splice(i, 1) : this.selectedTags.push(tag); }
+  isTagSelected(tag: string): boolean { return this.selectedTags.includes(tag); }
+
+  confirmSave(): void {
+    const workspaceId = this.wsService.activeWorkspaceId;
+    if (!workspaceId) { this.saveError = 'No workspace found.'; return; }
+
+    const schemeId = SCHEME_MAP[this.config.modulationScheme] ?? 'qpsk';
+
+    this.simService.saveConfig({
+      name:        this.simulationName,
+      description: this.simulationDescription,
+      scheme_id:   schemeId,
+      workspaceId,
+      is_template: false,
+      parameters: {
+        snr_min:       this.config.snr_min,
+        snr_max:       this.config.snr_max,
+        snr_step:      this.config.snr_step,
+        num_bits:      this.config.num_bits,
+        const_ebn0_db: this.config.snr,
+        num_symbols:   this.config.num_symbols,
+      }
+    }).subscribe({
+      next: () => {
+        this.saveDone = true;
+        setTimeout(() => { this.showSavePanel = false; this.saveDone = false; }, 1200);
+      },
+      error: (err) => {
+        this.saveError = err.error?.message ?? 'Failed to save. Try again.';
+      }
+    });
+  }
+
+  // ── Export panel ──────────────────────────────────────────────────────────
+  get exportFileName(): string {
+    const s   = this.config.modulationScheme.replace('-', '');
+    const d   = new Date().toLocaleDateString('en-CA');
+    const ext = this.exportFormat === 'png' ? 'zip' : this.exportFormat;
+    return `simulation_${s}_${d}.${ext}`;
+  }
+
+  confirmExport(): void {
+    console.log('Exporting', this.exportFileName);
+    this.showExportPanel = false;
+  }
+
+  // ── Share panel ───────────────────────────────────────────────────────────
+  copyLink(): void {
+    navigator.clipboard.writeText(this.shareLink).catch(() => {});
+    this.linkCopied = true;
+    setTimeout(() => this.linkCopied = false, 2000);
+  }
+
+  sendInvite(): void {
+    if (!this.inviteEmail) return;
+    console.log('Invite sent to', this.inviteEmail);
+    this.inviteEmail = '';
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  private now(): string {
+    return new Date().toLocaleTimeString('en-GB', { hour12: false });
+  }
+
+  private addLog(time: string, message: string, type: 'info' | 'success' | 'error'): void {
+    this.executionLogs.push({ time, message, type });
+  }
 }

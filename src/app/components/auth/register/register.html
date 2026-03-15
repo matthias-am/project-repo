@@ -1,0 +1,129 @@
+<div class="login-wrapper">
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <mat-toolbar class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="3" fill="#22d3ee" />
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
+            stroke="#22d3ee" stroke-width="1.5" fill="none" />
+          <path d="M2 12h4M18 12h4M12 2v4M12 18v4" stroke="#22d3ee" stroke-width="1.5"
+            stroke-linecap="round" />
+        </svg>
+      </div>
+      <div>
+        <span class="brand-name">ModSim Pro</span>
+        <span class="brand-sub">Digital Modulation Analysis</span>
+      </div>
+    </div>
+  </mat-toolbar>
+
+  <main class="login-main">
+    <div class="card-wrapper">
+      <mat-card class="login-card" [class.shake]="registerError" appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Create Account</mat-card-title>
+          <mat-card-subtitle>Register for a ModSim Pro account</mat-card-subtitle>
+        </mat-card-header>
+
+        <mat-card-content>
+          @if (registerError) {
+            <div class="alert-error">
+              <mat-icon>error_outline</mat-icon>
+              <span>{{ errorMessage }}</span>
+            </div>
+          }
+
+          <form (ngSubmit)="onSubmit()" #regForm="ngForm" novalidate>
+
+            <!-- Username -->
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Username</mat-label>
+              <input matInput type="text" name="username"
+                     placeholder="Choose a username"
+                     [(ngModel)]="fields.username"
+                     #username="ngModel"
+                     required minlength="3"
+                     autocomplete="username" />
+              <mat-icon matPrefix>person_outline</mat-icon>
+              @if (username.invalid && username.touched) {
+                <mat-error>Username must be at least 3 characters</mat-error>
+              }
+            </mat-form-field>
+
+            <!-- Email -->
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Email</mat-label>
+              <input matInput type="email" name="email"
+                     placeholder="Enter your email"
+                     [(ngModel)]="fields.email"
+                     #email="ngModel"
+                     required email
+                     autocomplete="email" />
+              <mat-icon matPrefix>mail_outline</mat-icon>
+              @if (email.invalid && email.touched) {
+                <mat-error>Please enter a valid email</mat-error>
+              }
+            </mat-form-field>
+
+            <!-- Password -->
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Password</mat-label>
+              <input matInput [type]="showPassword ? 'text' : 'password'"
+                     name="password"
+                     placeholder="Create a password"
+                     [(ngModel)]="fields.password"
+                     #password="ngModel"
+                     required minlength="6"
+                     autocomplete="new-password" />
+              <mat-icon matPrefix>lock_outline</mat-icon>
+              <button mat-icon-button matSuffix type="button" (click)="togglePassword()">
+                <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              @if (password.invalid && password.touched) {
+                <mat-error>Password must be at least 6 characters</mat-error>
+              }
+            </mat-form-field>
+
+            <!-- Confirm Password -->
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Confirm Password</mat-label>
+              <input matInput [type]="showConfirmPassword ? 'text' : 'password'"
+                     name="confirmPassword"
+                     placeholder="Confirm your password"
+                     [(ngModel)]="fields.confirmPassword"
+                     #confirmPassword="ngModel"
+                     required
+                     autocomplete="new-password" />
+              <mat-icon matPrefix>lock_outline</mat-icon>
+              <button mat-icon-button matSuffix type="button" (click)="toggleConfirmPassword()">
+                <mat-icon>{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              @if (passwordMismatch) {
+                <mat-error>Passwords do not match</mat-error>
+              }
+            </mat-form-field>
+
+            <button mat-flat-button class="btn-login full-width"
+                    type="submit"
+                    [disabled]="isLoading || regForm.invalid || passwordMismatch">
+              @if (isLoading) {
+                <mat-spinner diameter="18" />
+                <span>Creating account...</span>
+              } @else {
+                <span>Create Account</span>
+              }
+            </button>
+
+          </form>
+        </mat-card-content>
+
+        <mat-card-footer class="card-footer">
+          <p>Already have an account? <a routerLink="/login">Sign in here</a></p>
+        </mat-card-footer>
+      </mat-card>
+    </div>
+  </main>
+</div>

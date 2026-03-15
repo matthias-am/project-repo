@@ -9,6 +9,11 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface RegisterPayload {
+  username: string;
+  email: string;
+  password: string;
+}
 export interface AuthResponse {
   token: string;
   user: {
@@ -37,6 +42,15 @@ export class Auth {
         this.storeUser(response.user);
       })
     );
+  }
+
+  register(payload: RegisterPayload): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.API_URL}/auth/register`, payload).pipe(
+      tap((response) => {
+        this.storeToken(response.token);
+        this.storeUser(response.user);
+      })
+  );
   }
 
   // Logout 
