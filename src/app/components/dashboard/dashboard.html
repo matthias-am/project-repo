@@ -12,8 +12,8 @@
         </svg>
       </div>
       <div>
-        <span class="brand-name">ModSim Pro</span>
-        <span class="brand-sub">Digital Modulation Analysis</span>
+        <span class="brand-name">Modulation Pro</span>
+        <span class="brand-sub">Digital Modulation Analysis Tool</span>
       </div>
     </div>
     <nav class="nav-links">
@@ -23,7 +23,20 @@
     </nav>
     <div class="nav-right">
       <button mat-icon-button><mat-icon>help_outline</mat-icon></button>
-      <button mat-icon-button><mat-icon>account_circle</mat-icon></button>
+      <button mat-icon-button [matMenuTriggerFor]="userMenu">
+        <mat-icon>account_circle</mat-icon>
+      </button>
+      <mat-menu #userMenu="matMenu" class="user-menu">
+        <div class="user-menu-header">
+          <span class="user-menu-name">{{ currentUser?.username }}</span>
+          <span class="user-menu-email">{{ currentUser?.email }}</span>
+        </div>
+        <mat-divider></mat-divider>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Log out</span>
+        </button>
+      </mat-menu>
     </div>
   </mat-toolbar>
 

@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Auth } from '../../../services/auth';
 
+//imports etc
 @Component({
   selector: 'app-register',
   standalone: true,
@@ -24,39 +25,40 @@ import { Auth } from '../../../services/auth';
   styleUrls: ['./register.css']
 })
 export class RegisterComponent {
-
+  //necessary fields needed for registration
   fields = { username: '', email: '', password: '', confirmPassword: '' };
-
-  showPassword        = false;
+  //password hash
+  showPassword = false;
   showConfirmPassword = false;
-  isLoading           = false;
-  registerError       = false;
-  errorMessage        = '';
+  isLoading = false;
+  registerError = false;
+  errorMessage = '';
 
-  constructor(private auth: Auth, private router: Router) {}
-
-  togglePassword():        void { this.showPassword        = !this.showPassword; }
+  constructor(private auth: Auth, private router: Router) { }
+  //password visibility
+  togglePassword(): void { this.showPassword = !this.showPassword; }
   toggleConfirmPassword(): void { this.showConfirmPassword = !this.showConfirmPassword; }
-
+  //make sure reg and confirm pw match up
   get passwordMismatch(): boolean {
     return !!this.fields.confirmPassword && this.fields.password !== this.fields.confirmPassword;
   }
-
+  //if they dont match, error
   onSubmit(): void {
     if (this.passwordMismatch) return;
 
     this.registerError = false;
-    this.isLoading     = true;
+    this.isLoading = true;
 
     const { username, email, password } = this.fields;
-
+    //after registration, ,create membership and next page is sim page
     this.auth.register({ username, email, password }).subscribe({
       next: () => {
         this.isLoading = false;
-        this.router.navigate(['/dashboard']);
+        this.router.navigate(['/simulation']);
       },
+      //error messages
       error: (err: any) => {
-        this.isLoading     = false;
+        this.isLoading = false;
         this.registerError = true;
         if (err.status === 400) {
           const msg = err.error?.message || err.error?.errors?.[0]?.msg;

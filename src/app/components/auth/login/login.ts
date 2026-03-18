@@ -1,8 +1,8 @@
 import { Component } from '@angular/core';
-import {Router, RouterLink} from '@angular/router';
-import {FormsModule} from '@angular/forms';
-import {MatToolbarModule} from 
-'@angular/material/toolbar';
+import { Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { MatToolbarModule } from
+  '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -13,7 +13,9 @@ import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { CommonModule } from '@angular/common';
 import { Auth } from '../../../services/auth';
+import { WorkspaceService } from '../../../services/workspace.service'
 
+//imports and etc
 @Component({
   selector: 'app-login',
   standalone: true,
@@ -35,35 +37,43 @@ import { Auth } from '../../../services/auth';
   styleUrls: ['./login.css']
 })
 export class LoginComponent {
-
+  //necessary credentials for login
   credentials = {
     username: '',
+    email: '',
     password: ''
   };
 
+  //password hash
   showPassword = false;
   isLoading = false;
   loginError = false;
   errorMessage = '';
 
+  //
   constructor(
     private auth: Auth,
+    private wsService: WorkspaceService,
     private router: Router
-  ) {}
-
+  ) { }
+  //ability ti change pw visibility
   togglePassword(): void {
     this.showPassword = !this.showPassword;
   }
-
+  //when they click submit button
   onSubmit(): void {
     this.loginError = false;
     this.isLoading = true;
 
+    //creates workspace and membership, and next page that loads is sim page
     this.auth.login(this.credentials).subscribe({
       next: () => {
+        this.wsService.ensureWorkspace().subscribe({})
         this.isLoading = false;
-        this.router.navigate(['/dashboard']);
+        this.router.navigate(['/simulation']);
       },
+
+      // if any error
       error: (err: any) => {
         this.isLoading = false;
         this.loginError = true;

@@ -9,10 +9,11 @@ export interface CreateConfigPayload {
   description?: string;
   scheme_id:   string;
   parameters: {
-    snr_min:       number;
-    snr_max:       number;
-    snr_step:      number;
-    num_bits:      number;
+    schemeId: string,
+    snr_min: number;
+    snr_max: number;
+    snr_step:number;
+    num_bits: number;
     const_ebn0_db: number;
     num_symbols:   number;
   };
@@ -111,4 +112,15 @@ export class SimulationService {
   saveConfig(payload: CreateConfigPayload & { is_template: boolean }): Observable<ConfigResponse> {
     return this.http.post<ConfigResponse>(`${API}/configs`, payload);
   }
+
+  //invite a user to ws
+  inviteToWorkspace(workspaceId: string, email: string, role: string = 'editor'): Observable<any> {
+    return this.http.post(`${API}/workspaces/${workspaceId}/invite`, { email, role });
+  }
+ 
+  // Get workspace members
+  getWorkspaceMembers(workspaceId: string): Observable<any> {
+    return this.http.get(`${API}/workspaces/${workspaceId}/members`);
+  }
+  
 }

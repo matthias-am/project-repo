@@ -13,6 +13,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatInputModule } from '@angular/material/input';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatMenuModule } from '@angular/material/menu';
 import { Subscription } from 'rxjs';
 import { Chart, registerables } from 'chart.js';
 
@@ -60,10 +61,10 @@ export interface Collaborator {
 
 // Map UI scheme names to backend schemeIds
 const SCHEME_MAP: Record<string, string> = {
-  'BPSK':    'bpsk',
-  'QPSK':    'qpsk',
-  '16-QAM':  '16qam',
-  '64-QAM':  '64qam',
+  'BPSK': 'bpsk',
+  'QPSK': 'qpsk',
+  '16-QAM': '16qam',
+  '64-QAM': '64qam',
   '256-QAM': '256qam',
 };
 
@@ -79,12 +80,17 @@ const BITS_PER_SYMBOL: Record<string, number> = {
     MatToolbarModule, MatCardModule, MatFormFieldModule, MatSelectModule,
     MatButtonModule, MatIconModule, MatProgressSpinnerModule,
     MatSlideToggleModule, MatDividerModule, MatInputModule, MatChipsModule,
+    MatMenuModule,
     ModulationParameter, SnrInput
   ],
   templateUrl: './simulation.html',
   styleUrl: './simulation.css'
 })
 export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked {
+
+  currentUser: ReturnType<Auth['getUser']> = null;
+
+  logout(): void { this.auth.logout(); }
 
   config: SimulationConfig = {
     modulationScheme: 'QPSK',
@@ -107,60 +113,81 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
   };
 
   executionLogs: LogEntry[] = [];
-  isRunning      = false;
-  hasResults     = false;
+  isRunning = false;
+  hasResults = false;
   showDecisionBoundaries = true;
-  showDistances  = false;
+  showDistances = false;
+
+  // Multi-scheme BER overlay
+  berSchemes = [
+    { key: 'simulated', label: 'Simulated', color: '#22d3ee', visible: true, dashed: false },
+    { key: 'bpsk', label: 'BPSK', color: '#34d399', visible: false, dashed: true },
+    { key: 'qpsk', label: 'QPSK', color: '#818cf8', visible: false, dashed: true },
+    { key: '16qam', label: '16-QAM', color: '#f472b6', visible: false, dashed: true },
+    { key: '64qam', label: '64-QAM', color: '#fb923c', visible: false, dashed: true },
+    { key: '256qam', label: '256-QAM', color: '#facc15', visible: false, dashed: true },
+  ];
 
   // Panel state
-  showSavePanel   = false;
+  showSavePanel = false;
   showExportPanel = false;
-  showSharePanel  = false;
+  showSharePanel = false;
 
   // Save panel
-  simulationName        = `QPSK Analysis - ${new Date().toLocaleDateString('en-CA')}`;
+  simulationName = `QPSK Analysis - ${new Date().toLocaleDateString('en-CA')}`;
   simulationDescription = '';
   availableTags = ['BER Analysis', '4G', '5G', 'High SNR', 'Low SNR', 'QAM', 'PSK', 'Research', 'Teaching', 'Comparison'];
-  selectedTags:  string[] = [];
-  saveDone       = false;
-  saveError      = '';
+  selectedTags: string[] = [];
+  saveDone = false;
+  saveError = '';
 
   // Export panel
   exportFormat: 'json' | 'csv' | 'pdf' | 'png' = 'json';
-  exportIncludeParams  = true;
+  exportIncludeParams = true;
   exportIncludeResults = true;
   exportIncludeVisuals = true;
 
   // Share panel
-  shareLink      = 'https://modsim.pro/share/x8po';
-  allowEditing   = true;
-  allowComments  = true;
+  shareLink = 'https://modsim.pro/share/x8po';
+  allowEditing = true;
+  allowComments = true;
   shareTab: 'link' | 'invite' | 'users' = 'link';
-  inviteEmail    = '';
-  linkCopied     = false;
+  inviteEmail = '';
+  inviteRole = 'editor';
+  inviteError = '';
+  inviteSuccess = '';
+  linkCopied = false;
+  workspaceMembers: any[] = [];
 
   collaborators: Collaborator[] = [
-    { name: 'Sarah Chen',        initials: 'SC', color: '#06b6d4', status: 'active', activity: 'Adjusting SNR parameter' },
-    { name: 'Michael Rodriguez', initials: 'MR', color: '#8b5cf6', status: 'active', activity: 'Viewing BER graph'        },
-    { name: 'Emily Watson',      initials: 'EW', color: '#ec4899', status: 'idle',   activity: 'Idle for 5 minutes'       },
+    { name: 'Sarah Chen', initials: 'SC', color: '#06b6d4', status: 'active', activity: 'Adjusting SNR parameter' },
+    { name: 'Michael Rodriguez', initials: 'MR', color: '#8b5cf6', status: 'active', activity: 'Viewing BER graph' },
+    { name: 'Emily Watson', initials: 'EW', color: '#ec4899', status: 'idle', activity: 'Idle for 5 minutes' },
   ];
 
-  private berChart:           Chart | null = null;
+  private berChart: Chart | null = null;
   private constellationChart: Chart | null = null;
-  private chartsInitialized  = false;
-  private pollSub?:           Subscription;
-  private currentRunId?:      string;
-  private rawResults?:        SimulationResults;
+  private chartsInitialized = false;
+  private pollSub?: Subscription;
+  private currentRunId?: string;
+  private rawResults?: SimulationResults;
 
   constructor(
-    private simService:  SimulationService,
-    private wsService:   WorkspaceService,
-    private auth:        Auth
-  ) {}
+    private simService: SimulationService,
+    private wsService: WorkspaceService,
+    private auth: Auth
+  ) { }
 
   ngOnInit(): void {
-    // Ensure workspace is loaded
+    this.currentUser = this.auth.getUser();
     this.wsService.ensureWorkspace().subscribe({
+      next: (workspaces) => {
+        if (workspaces.length > 0) {
+          this.addLog(this.now(), 'Workspace loaded, ready to simulate.', 'info');
+        } else {
+          this.addLog(this.now(), 'No workspace found. Please contact support.', 'error');
+        }
+      },
       error: () => this.addLog(this.now(), 'Could not load workspace', 'error')
     });
   }
@@ -186,10 +213,10 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
       return;
     }
 
-    this.isRunning         = true;
-    this.hasResults        = false;
+    this.isRunning = true;
+    this.hasResults = false;
     this.chartsInitialized = false;
-    this.executionLogs     = [];
+    this.executionLogs = [];
     this.berChart?.destroy();
     this.constellationChart?.destroy();
 
@@ -203,12 +230,13 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
       scheme_id: schemeId,
       workspaceId,
       parameters: {
-        snr_min:       this.config.snr_min,
-        snr_max:       this.config.snr_max,
-        snr_step:      this.config.snr_step,
-        num_bits:      this.config.num_bits,
+        schemeId,
+        snr_min: this.config.snr_min,
+        snr_max: this.config.snr_max,
+        snr_step: this.config.snr_step,
+        num_bits: this.config.num_bits,
         const_ebn0_db: this.config.snr,
-        num_symbols:   this.config.num_symbols,
+        num_symbols: this.config.num_symbols,
       }
     }).subscribe({
       next: (res) => {
@@ -247,7 +275,7 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
         if (status.status === 'completed' && status.results) {
           this.rawResults = status.results;
           this.applyResults(status.results);
-          this.isRunning  = false;
+          this.isRunning = false;
           this.hasResults = true;
           this.addLog(this.now(), 'Simulation completed successfully', 'success');
           this.pollSub?.unsubscribe();
@@ -268,7 +296,7 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
 
   private updateLogsFromStatus(status: RunStatusResponse): void {
     if (status.status === 'running' &&
-        !this.executionLogs.some(l => l.message.includes('Processing'))) {
+      !this.executionLogs.some(l => l.message.includes('Processing'))) {
       this.addLog(this.now(), `Processing ${this.config.method} iterations`, 'info');
     }
   }
@@ -278,10 +306,10 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
 
     // overall_ber is the aggregate BER across all SNR points from Octave
     this.results = {
-      requiredSnr:        this.config.snr,
+      requiredSnr: this.config.snr,
       spectralEfficiency: (raw as any).spectral_efficiency ?? bits,
-      errorRate:          (raw as any).overall_ber ?? (raw.ber?.[(raw.ber?.length ?? 1) - 1] ?? 0),
-      processingTime:     (raw as any).processing_time ?? 0,
+      errorRate: (raw as any).overall_ber ?? (raw.ber?.[(raw.ber?.length ?? 1) - 1] ?? 0),
+      processingTime: (raw as any).processing_time ?? 0,
     };
   }
 
@@ -300,23 +328,43 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     this.berChart?.destroy();
 
     const raw = this.rawResults;
-    // Octave outputs snr_db, not snr_values
     const snrValues = (raw as any)?.snr_db ?? raw?.snr_values ?? Array.from({ length: 21 }, (_, i) => i - 5);
     const berValues = raw?.ber ?? [];
 
+    const datasets: any[] = [];
+
+    // Add simulated result if visible
+    const simScheme = this.berSchemes.find(s => s.key === 'simulated');
+    if (simScheme?.visible && berValues.length > 0) {
+      datasets.push({
+        label: `${this.config.modulationScheme} (Simulated)`,
+        data: berValues,
+        borderColor: simScheme.color,
+        borderWidth: 2.5,
+        pointRadius: 0,
+        tension: 0.3,
+        borderDash: []
+      });
+    }
+
+    // Add theoretical overlays for visible schemes
+    for (const scheme of this.berSchemes) {
+      if (!scheme.visible || scheme.key === 'simulated') continue;
+      const theoreticalData = snrValues.map((s: number) => this.theoreticalBer(scheme.key, s));
+      datasets.push({
+        label: `${scheme.label} (Theoretical)`,
+        data: theoreticalData,
+        borderColor: scheme.color,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.3,
+        borderDash: [6, 3]
+      });
+    }
+
     this.berChart = new Chart(canvas, {
       type: 'line',
-      data: {
-        labels: snrValues.map((v: number) => `${v}`),
-        datasets: [{
-          label: this.config.modulationScheme,
-          data: berValues,
-          borderColor: '#22d3ee',
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.4
-        }]
-      },
+      data: { labels: snrValues.map((v: number) => `${v}`), datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -324,7 +372,7 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
           x: { title: { display: true, text: 'SNR (dB)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' } },
           y: { type: 'logarithmic', title: { display: true, text: 'Bit Error Rate (BER)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' } }
         },
-        plugins: { legend: { labels: { color: '#e6edf3' } } }
+        plugins: { legend: { labels: { color: '#e6edf3', usePointStyle: true } } }
       }
     });
   }
@@ -335,32 +383,96 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
 
     this.constellationChart?.destroy();
 
-    const raw         = this.rawResults;
-    const idealPts    = raw?.constellation?.ideal    ?? [];
+    const raw = this.rawResults;
+    const idealPts = raw?.constellation?.ideal ?? [];
     const receivedPts = raw?.constellation?.received ?? [];
 
     const toXY = (pts: { real: number; imag: number }[]) =>
       pts.map(p => ({ x: p.real, y: p.imag }));
 
-    const datasets = [];
+    const idealXY = toXY(idealPts);
+    const receivedXY = toXY(receivedPts);
 
-    if (receivedPts.length > 0) {
+    // Find nearest ideal point for each received point
+    const findNearest = (pt: { x: number, y: number }, ideals: { x: number, y: number }[]) => {
+      let best = ideals[0];
+      let bestDist = Infinity;
+      for (const ip of ideals) {
+        const d = Math.sqrt((pt.x - ip.x) ** 2 + (pt.y - ip.y) ** 2);
+        if (d < bestDist) { bestDist = d; best = ip; }
+      }
+      return best;
+    };
+
+    // Custom plugin to draw distance lines and decision boundaries
+    const constellationPlugin = {
+      id: 'constellationOverlay',
+      afterDatasetsDraw: (chart: any) => {
+        const ctx = chart.ctx;
+        const xScale = chart.scales['x'];
+        const yScale = chart.scales['y'];
+
+        // Draw distance lines
+        if (this.showDistances && idealXY.length > 0 && receivedXY.length > 0) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(251,191,36,0.4)';
+          ctx.lineWidth = 1;
+          for (const rpt of receivedXY) {
+            const nearest = findNearest(rpt, idealXY);
+            ctx.beginPath();
+            ctx.moveTo(xScale.getPixelForValue(rpt.x), yScale.getPixelForValue(rpt.y));
+            ctx.lineTo(xScale.getPixelForValue(nearest.x), yScale.getPixelForValue(nearest.y));
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        // Draw decision boundaries (axes through origin)
+        if (this.showDecisionBoundaries) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(248,113,113,0.5)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+
+          // Vertical boundary at x=0
+          const xMid = xScale.getPixelForValue(0);
+          ctx.beginPath();
+          ctx.moveTo(xMid, chart.chartArea.top);
+          ctx.lineTo(xMid, chart.chartArea.bottom);
+          ctx.stroke();
+
+          // Horizontal boundary at y=0
+          const yMid = yScale.getPixelForValue(0);
+          ctx.beginPath();
+          ctx.moveTo(chart.chartArea.left, yMid);
+          ctx.lineTo(chart.chartArea.right, yMid);
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+      }
+    };
+
+    const datasets: any[] = [];
+
+    if (receivedXY.length > 0) {
       datasets.push({
         label: 'Received',
-        data: toXY(receivedPts),
+        data: receivedXY,
         backgroundColor: 'rgba(34,211,238,0.6)',
         pointRadius: 4,
         pointHoverRadius: 6
       });
     }
 
-    if (idealPts.length > 0) {
+    if (idealXY.length > 0) {
       datasets.push({
         label: 'Ideal',
-        data: toXY(idealPts),
-        backgroundColor: 'rgba(248,113,113,0.8)',
-        pointRadius: 6,
-        pointHoverRadius: 8
+        data: idealXY,
+        backgroundColor: 'rgba(248,113,113,0.9)',
+        pointRadius: 7,
+        pointHoverRadius: 9
       });
     }
 
@@ -370,18 +482,71 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: false,
         scales: {
           x: { title: { display: true, text: 'In-phase (I)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' }, min: -1.5, max: 1.5 },
           y: { title: { display: true, text: 'Quadrature (Q)', color: '#7d8590' }, ticks: { color: '#7d8590' }, grid: { color: 'rgba(125,133,144,0.15)' }, min: -1.5, max: 1.5 }
         },
         plugins: { legend: { labels: { color: '#e6edf3' } } }
-      }
+      },
+      plugins: [constellationPlugin]
     });
   }
 
-  // ── Panel actions ─────────────────────────────────────────────────────────
-  onShare():  void { this.closeAllPanels(); this.showSharePanel  = true; }
-  onSave():   void { this.closeAllPanels(); this.showSavePanel   = true; this.saveDone = false; this.saveError = ''; }
+  // Re-render constellation when toggles change
+  onDecisionBoundariesChange(): void {
+    if (this.hasResults) this.initConstellationChart();
+  }
+
+  onShowDistancesChange(): void {
+    if (this.hasResults) this.initConstellationChart();
+  }
+
+  toggleBerScheme(key: string): void {
+    const scheme = this.berSchemes.find(s => s.key === key);
+    if (scheme) {
+      scheme.visible = !scheme.visible;
+      if (this.hasResults) this.initBerChart();
+    }
+  }
+  //diff colors or members
+  memberColor(username: string): string {
+    const colors = ['#06b6d4', '#8b5cf6', '#ec4899', '#f97316', '#34d399', '#facc15'];
+    let hash = 0;
+    for (const c of username) hash = c.charCodeAt(0) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+  }
+
+  // Theoretical BER formulas
+  private theoreticalBer(scheme: string, snrDb: number): number {
+    const snr = Math.pow(10, snrDb / 10);
+    const erfc = (x: number) => {
+      const t = 1 / (1 + 0.3275911 * x);
+      return t * Math.exp(-x * x) * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    };
+    const qfunc = (x: number) => 0.5 * erfc(x / Math.SQRT2);
+    switch (scheme) {
+      case 'bpsk': return qfunc(Math.sqrt(2 * snr));
+      case 'qpsk': return qfunc(Math.sqrt(2 * snr));
+      case '16qam': return (3 / 8) * erfc(Math.sqrt(snr / 10));
+      case '64qam': return (7 / 24) * erfc(Math.sqrt(snr / 42));
+      case '256qam': return (15 / 64) * erfc(Math.sqrt(snr / 170));
+      default: return 0.5;
+    }
+  }
+  onShare(): void {
+    this.closeAllPanels();
+    this.showSharePanel = true;
+    // Load real workspace members
+    const workspaceId = this.wsService.activeWorkspaceId;
+    if (workspaceId) {
+      this.simService.getWorkspaceMembers(workspaceId).subscribe({
+        next: (res: any) => this.workspaceMembers = res.members ?? [],
+        error: () => { }
+      });
+    }
+  }
+  onSave(): void { this.closeAllPanels(); this.showSavePanel = true; this.saveDone = false; this.saveError = ''; }
   onExport(): void { this.closeAllPanels(); this.showExportPanel = true; }
 
   closeAllPanels(): void {
@@ -390,8 +555,8 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     this.showSharePanel = false;
   }
 
-  // ── Save panel ────────────────────────────────────────────────────────────
-  toggleTag(tag: string):       void { const i = this.selectedTags.indexOf(tag); i >= 0 ? this.selectedTags.splice(i, 1) : this.selectedTags.push(tag); }
+  // Save panel
+  toggleTag(tag: string): void { const i = this.selectedTags.indexOf(tag); i >= 0 ? this.selectedTags.splice(i, 1) : this.selectedTags.push(tag); }
   isTagSelected(tag: string): boolean { return this.selectedTags.includes(tag); }
 
   confirmSave(): void {
@@ -401,18 +566,19 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     const schemeId = SCHEME_MAP[this.config.modulationScheme] ?? 'qpsk';
 
     this.simService.saveConfig({
-      name:        this.simulationName,
+      name: this.simulationName,
       description: this.simulationDescription,
-      scheme_id:   schemeId,
+      scheme_id: schemeId,
       workspaceId,
       is_template: false,
       parameters: {
-        snr_min:       this.config.snr_min,
-        snr_max:       this.config.snr_max,
-        snr_step:      this.config.snr_step,
-        num_bits:      this.config.num_bits,
+        schemeId,
+        snr_min: this.config.snr_min,
+        snr_max: this.config.snr_max,
+        snr_step: this.config.snr_step,
+        num_bits: this.config.num_bits,
         const_ebn0_db: this.config.snr,
-        num_symbols:   this.config.num_symbols,
+        num_symbols: this.config.num_symbols,
       }
     }).subscribe({
       next: () => {
@@ -425,10 +591,10 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     });
   }
 
-  // ── Export panel ──────────────────────────────────────────────────────────
+  // Export panel 
   get exportFileName(): string {
-    const s   = this.config.modulationScheme.replace('-', '');
-    const d   = new Date().toLocaleDateString('en-CA');
+    const s = this.config.modulationScheme.replace('-', '');
+    const d = new Date().toLocaleDateString('en-CA');
     const ext = this.exportFormat === 'png' ? 'zip' : this.exportFormat;
     return `simulation_${s}_${d}.${ext}`;
   }
@@ -438,20 +604,40 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     this.showExportPanel = false;
   }
 
-  // ── Share panel ───────────────────────────────────────────────────────────
+  // Share panel 
   copyLink(): void {
-    navigator.clipboard.writeText(this.shareLink).catch(() => {});
+    navigator.clipboard.writeText(this.shareLink).catch(() => { });
     this.linkCopied = true;
     setTimeout(() => this.linkCopied = false, 2000);
   }
 
   sendInvite(): void {
     if (!this.inviteEmail) return;
-    console.log('Invite sent to', this.inviteEmail);
-    this.inviteEmail = '';
+    const workspaceId = this.wsService.activeWorkspaceId;
+    if (!workspaceId) return;
+
+    this.inviteError = '';
+    this.inviteSuccess = '';
+
+    this.simService.inviteToWorkspace(workspaceId, this.inviteEmail, this.inviteRole).subscribe({
+      next: (res: any) => {
+        this.inviteSuccess = res.message;
+        this.inviteEmail = '';
+        // Refresh members list
+        this.simService.getWorkspaceMembers(workspaceId).subscribe({
+          next: (r: any) => this.workspaceMembers = r.members ?? [],
+          error: () => { }
+        });
+        setTimeout(() => this.inviteSuccess = '', 3000);
+      },
+      error: (err: any) => {
+        this.inviteError = err.error?.message ?? 'Failed to send invite.';
+        setTimeout(() => this.inviteError = '', 3000);
+      }
+    });
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helpers 
   private now(): string {
     return new Date().toLocaleTimeString('en-GB', { hour12: false });
   }
