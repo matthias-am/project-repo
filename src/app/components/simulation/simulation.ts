@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -49,14 +49,6 @@ export interface LogEntry {
   time: string;
   message: string;
   type: 'info' | 'success' | 'error';
-}
-
-export interface Collaborator {
-  name: string;
-  initials: string;
-  color: string;
-  status: 'active' | 'idle';
-  activity: string;
 }
 
 // Map UI scheme names to backend schemeIds
@@ -131,7 +123,6 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
   // Panel state
   showSavePanel = false;
   showExportPanel = false;
-  showSharePanel = false;
 
   // Save panel
   simulationName = `QPSK Analysis - ${new Date().toLocaleDateString('en-CA')}`;
@@ -147,39 +138,34 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
   exportIncludeResults = true;
   exportIncludeVisuals = true;
 
-  // Share panel
-  shareLink = 'https://modsim.pro/share/x8po';
-  allowEditing = true;
-  allowComments = true;
-  shareTab: 'link' | 'invite' | 'users' = 'link';
-  inviteEmail = '';
-  inviteRole = 'editor';
-  inviteError = '';
-  inviteSuccess = '';
-  linkCopied = false;
-  workspaceMembers: any[] = [];
-
-  collaborators: Collaborator[] = [
-    { name: 'Sarah Chen', initials: 'SC', color: '#06b6d4', status: 'active', activity: 'Adjusting SNR parameter' },
-    { name: 'Michael Rodriguez', initials: 'MR', color: '#8b5cf6', status: 'active', activity: 'Viewing BER graph' },
-    { name: 'Emily Watson', initials: 'EW', color: '#ec4899', status: 'idle', activity: 'Idle for 5 minutes' },
-  ];
-
   private berChart: Chart | null = null;
   private constellationChart: Chart | null = null;
   private chartsInitialized = false;
   private pollSub?: Subscription;
   private currentRunId?: string;
-  private rawResults?: SimulationResults;
+  public rawResults?: SimulationResults;
+
+  // Accumulated simulation runs for multi-curve comparison
+  accumulatedRuns: { label: string; color: string; ber: number[]; snr_db: number[] }[] = [];
+  showAccumulated = true;
 
   constructor(
     private simService: SimulationService,
     private wsService: WorkspaceService,
-    private auth: Auth
+    private auth: Auth,
+    private router: Router
   ) { }
 
   ngOnInit(): void {
     this.currentUser = this.auth.getUser();
+
+    // Load config from library if navigated with state
+    const nav = this.router.getCurrentNavigation();
+    const state = nav?.extras?.state ?? history.state;
+    if (state?.loadedConfig) {
+      this.applyLoadedConfig(state.loadedConfig);
+    }
+
     this.wsService.ensureWorkspace().subscribe({
       next: (workspaces) => {
         if (workspaces.length > 0) {
@@ -205,7 +191,41 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     this.constellationChart?.destroy();
   }
 
-  // ── Run simulation ────────────────────────────────────────────────────────
+  // ── Adaptive modulation 
+  isAdaptive = false;
+  snrProfile: 'linear' | 'sinusoidal' = 'linear';
+
+  // ── Multi-scheme comparison 
+  compareSchemes = [
+    { key: 'bpsk', label: 'BPSK', selected: false },
+    { key: 'qpsk', label: 'QPSK', selected: false },
+    { key: '16qam', label: '16-QAM', selected: false },
+    { key: '64qam', label: '64-QAM', selected: false },
+    { key: '256qam', label: '256-QAM', selected: false },
+  ];
+
+  private applyLoadedConfig(cfg: any): void {
+    const schemeMap: Record<string, string> = {
+      'BPSK': 'BPSK', 'QPSK': 'QPSK',
+      '16QAM': '16-QAM', '64QAM': '64-QAM', '256QAM': '256-QAM'
+    };
+    this.config.modulationScheme = schemeMap[cfg.scheme] ?? cfg.scheme ?? 'QPSK';
+    this.config.snr = cfg.snr ?? 10;
+    this.config.snr_min = cfg.snr_min ?? 0;
+    this.config.snr_max = cfg.snr_max ?? 20;
+    this.config.snr_step = cfg.snr_step ?? 2;
+    this.config.num_bits = cfg.num_bits ?? 100000;
+    this.config.num_symbols = cfg.num_symbols ?? 3000;
+
+    const raw = cfg.raw;
+    this.isAdaptive = raw?.is_adaptive ?? cfg.is_adaptive ?? false;
+    this.snrProfile = raw?.parameters?.snr_profile ?? cfg.snr_profile ?? 'linear';
+    this.config.method = this.isAdaptive ? 'Adaptive' : (cfg.method ?? 'Monte Carlo');
+
+    this.addLog(this.now(), `Loaded config: ${cfg.name}`, 'success');
+  }
+
+  // ── Run simulation 
   runSimulation(): void {
     const workspaceId = this.wsService.activeWorkspaceId;
     if (!workspaceId) {
@@ -223,12 +243,15 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     this.addLog(this.now(), 'Creating simulation configuration...', 'info');
 
     const schemeId = SCHEME_MAP[this.config.modulationScheme] ?? 'qpsk';
+    const selectedCompare = this.compareSchemes.filter(s => s.selected).map(s => s.key);
+    const modeLabel = this.isAdaptive ? 'Adaptive' : this.config.modulationScheme;
 
     // Step 1: Create config
     this.simService.createConfig({
-      name: `${this.config.modulationScheme} - ${new Date().toLocaleTimeString()}`,
+      name: `${modeLabel} - ${new Date().toLocaleTimeString()}`,
       scheme_id: schemeId,
       workspaceId,
+      is_adaptive: this.isAdaptive,
       parameters: {
         schemeId,
         snr_min: this.config.snr_min,
@@ -237,6 +260,9 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
         num_bits: this.config.num_bits,
         const_ebn0_db: this.config.snr,
         num_symbols: this.config.num_symbols,
+        is_adaptive: this.isAdaptive,
+        snr_profile: this.snrProfile,
+        compare_schemes: selectedCompare,
       }
     }).subscribe({
       next: (res) => {
@@ -304,16 +330,57 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
   private applyResults(raw: SimulationResults): void {
     const bits = BITS_PER_SYMBOL[this.config.modulationScheme] ?? 2;
 
-    // overall_ber is the aggregate BER across all SNR points from Octave
     this.results = {
       requiredSnr: this.config.snr,
       spectralEfficiency: (raw as any).spectral_efficiency ?? bits,
       errorRate: (raw as any).overall_ber ?? (raw.ber?.[(raw.ber?.length ?? 1) - 1] ?? 0),
       processingTime: (raw as any).processing_time ?? 0,
     };
+
+    // Accumulate this run for multi-curve comparison
+    const snrDb = (raw as any).snr_db ?? (raw as any).snr_values ?? [];
+    const ber = raw.ber ?? [];
+    if (ber.length > 0) {
+      const runColors = ['#22d3ee', '#34d399', '#f59e0b', '#f87171', '#818cf8', '#fb923c', '#c084fc'];
+      const label = this.isAdaptive
+        ? `Adaptive (${this.snrProfile})`
+        : this.config.modulationScheme;
+      // Check if same label already exists — update it instead of duplicating
+      const existingIdx = this.accumulatedRuns.findIndex(r => r.label === label);
+      const color = runColors[this.accumulatedRuns.length % runColors.length];
+      if (existingIdx >= 0) {
+        this.accumulatedRuns[existingIdx] = { label, color: this.accumulatedRuns[existingIdx].color, ber, snr_db: snrDb };
+      } else {
+        this.accumulatedRuns.push({ label, color, ber, snr_db: snrDb });
+      }
+    }
   }
 
-  // ── Charts ────────────────────────────────────────────────────────────────
+  getAdaptiveSchemes(): { scheme: string; snr_range: string }[] {
+    const raw = this.rawResults as any;
+    if (!raw?.used_mod || !raw?.snr_db) return [];
+    const result: { scheme: string; snr_range: string }[] = [];
+    let currentScheme = raw.used_mod[0];
+    let startSnr = raw.snr_db[0];
+    for (let i = 1; i < raw.used_mod.length; i++) {
+      if (raw.used_mod[i] !== currentScheme || i === raw.used_mod.length - 1) {
+        result.push({
+          scheme: currentScheme,
+          snr_range: `${startSnr.toFixed(0)}–${raw.snr_db[i - 1].toFixed(0)} dB`
+        });
+        currentScheme = raw.used_mod[i];
+        startSnr = raw.snr_db[i];
+      }
+    }
+    return result;
+  }
+
+  clearAccumulated(): void {
+    this.accumulatedRuns = [];
+    if (this.hasResults) this.initBerChart();
+  }
+
+  // ── Charts 
   private initCharts(): void {
     setTimeout(() => {
       this.initBerChart();
@@ -327,19 +394,17 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
 
     this.berChart?.destroy();
 
-    const raw = this.rawResults;
-    const snrValues = (raw as any)?.snr_db ?? raw?.snr_values ?? Array.from({ length: 21 }, (_, i) => i - 5);
-    const berValues = raw?.ber ?? [];
-
+    const raw = this.rawResults as any;
+    const snrValues = raw?.snr_db ?? raw?.snr_values ?? Array.from({ length: 21 }, (_, i) => i - 5);
     const datasets: any[] = [];
 
-    // Add simulated result if visible
-    const simScheme = this.berSchemes.find(s => s.key === 'simulated');
-    if (simScheme?.visible && berValues.length > 0) {
+    // ── Accumulated simulated runs 
+    for (const run of this.accumulatedRuns) {
+      const snr = run.snr_db.length > 0 ? run.snr_db : snrValues;
       datasets.push({
-        label: `${this.config.modulationScheme} (Simulated)`,
-        data: berValues,
-        borderColor: simScheme.color,
+        label: `${run.label} (Simulated)`,
+        data: run.ber,
+        borderColor: run.color,
         borderWidth: 2.5,
         pointRadius: 0,
         tension: 0.3,
@@ -347,7 +412,7 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
       });
     }
 
-    // Add theoretical overlays for visible schemes
+    // ── Theoretical overlays toggled by user ───────────────────────────────
     for (const scheme of this.berSchemes) {
       if (!scheme.visible || scheme.key === 'simulated') continue;
       const theoreticalData = snrValues.map((s: number) => this.theoreticalBer(scheme.key, s));
@@ -509,7 +574,7 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
       if (this.hasResults) this.initBerChart();
     }
   }
-  //diff colors or members
+
   memberColor(username: string): string {
     const colors = ['#06b6d4', '#8b5cf6', '#ec4899', '#f97316', '#34d399', '#facc15'];
     let hash = 0;
@@ -534,28 +599,23 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
       default: return 0.5;
     }
   }
-  onShare(): void {
+
+  // ── Panel actions 
+  onSave(): void {
     this.closeAllPanels();
-    this.showSharePanel = true;
-    // Load real workspace members
-    const workspaceId = this.wsService.activeWorkspaceId;
-    if (workspaceId) {
-      this.simService.getWorkspaceMembers(workspaceId).subscribe({
-        next: (res: any) => this.workspaceMembers = res.members ?? [],
-        error: () => { }
-      });
-    }
+    this.showSavePanel = true;
+    this.saveDone = false;
+    this.saveError = '';
+    this.simulationName = `${this.config.modulationScheme} Analysis - ${new Date().toLocaleDateString('en-CA')}`;
   }
-  onSave(): void { this.closeAllPanels(); this.showSavePanel = true; this.saveDone = false; this.saveError = ''; }
   onExport(): void { this.closeAllPanels(); this.showExportPanel = true; }
 
   closeAllPanels(): void {
     this.showSavePanel = false;
     this.showExportPanel = false;
-    this.showSharePanel = false;
   }
 
-  // Save panel
+  // ── Save panel 
   toggleTag(tag: string): void { const i = this.selectedTags.indexOf(tag); i >= 0 ? this.selectedTags.splice(i, 1) : this.selectedTags.push(tag); }
   isTagSelected(tag: string): boolean { return this.selectedTags.includes(tag); }
 
@@ -591,7 +651,7 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
     });
   }
 
-  // Export panel 
+  // ── Export panel 
   get exportFileName(): string {
     const s = this.config.modulationScheme.replace('-', '');
     const d = new Date().toLocaleDateString('en-CA');
@@ -600,44 +660,55 @@ export class SimulationComponent implements OnInit, OnDestroy, AfterViewChecked 
   }
 
   confirmExport(): void {
-    console.log('Exporting', this.exportFileName);
+    const raw = this.rawResults as any;
+    const snrValues = raw?.snr_db ?? raw?.snr_values ?? [];
+
+    const exportData = {
+      simulation: {
+        modulation: this.config.modulationScheme,
+        snr_db: this.config.snr,
+        awgn: this.config.awgn,
+        interference: this.config.interference,
+        method: this.config.method,
+        date: new Date().toISOString(),
+      },
+      results: this.exportIncludeResults ? {
+        ber: raw?.ber ?? [],
+        snr_values: snrValues,
+        overall_ber: raw?.overall_ber ?? null,
+        spectral_efficiency: raw?.spectral_efficiency ?? null,
+        avg_throughput: raw?.avg_throughput ?? null,
+      } : undefined,
+      constellation: (this.exportIncludeVisuals && raw?.constellation) ? raw.constellation : undefined,
+    };
+
+    let content = '';
+    let mimeType = 'application/json';
+    const fname = this.exportFileName;
+
+    if (this.exportFormat === 'json') {
+      content = JSON.stringify(exportData, null, 2);
+      mimeType = 'application/json';
+    } else if (this.exportFormat === 'csv') {
+      const rows = ['SNR_dB,BER'];
+      snrValues.forEach((s: number, i: number) => {
+        rows.push(`${s},${raw?.ber?.[i] ?? ''}`);
+      });
+      content = rows.join('\n');
+      mimeType = 'text/csv';
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    a.click();
+    URL.revokeObjectURL(url);
     this.showExportPanel = false;
   }
 
-  // Share panel 
-  copyLink(): void {
-    navigator.clipboard.writeText(this.shareLink).catch(() => { });
-    this.linkCopied = true;
-    setTimeout(() => this.linkCopied = false, 2000);
-  }
-
-  sendInvite(): void {
-    if (!this.inviteEmail) return;
-    const workspaceId = this.wsService.activeWorkspaceId;
-    if (!workspaceId) return;
-
-    this.inviteError = '';
-    this.inviteSuccess = '';
-
-    this.simService.inviteToWorkspace(workspaceId, this.inviteEmail, this.inviteRole).subscribe({
-      next: (res: any) => {
-        this.inviteSuccess = res.message;
-        this.inviteEmail = '';
-        // Refresh members list
-        this.simService.getWorkspaceMembers(workspaceId).subscribe({
-          next: (r: any) => this.workspaceMembers = r.members ?? [],
-          error: () => { }
-        });
-        setTimeout(() => this.inviteSuccess = '', 3000);
-      },
-      error: (err: any) => {
-        this.inviteError = err.error?.message ?? 'Failed to send invite.';
-        setTimeout(() => this.inviteError = '', 3000);
-      }
-    });
-  }
-
-  // Helpers 
+  // ── Helpers 
   private now(): string {
     return new Date().toLocaleTimeString('en-GB', { hour12: false });
   }

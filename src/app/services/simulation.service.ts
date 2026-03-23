@@ -5,35 +5,38 @@ import { Observable, interval, switchMap, takeWhile } from 'rxjs';
 const API = 'http://localhost:5001/api';
 
 export interface CreateConfigPayload {
-  name:        string;
+  name: string;
   description?: string;
-  scheme_id:   string;
+  scheme_id: string;
   parameters: {
-    schemeId: string,
+    schemeId: string;
     snr_min: number;
     snr_max: number;
-    snr_step:number;
+    snr_step: number;
     num_bits: number;
     const_ebn0_db: number;
-    num_symbols:   number;
+    num_symbols: number;
+    is_adaptive?: boolean;
+    snr_profile?: string;
+    compare_schemes?: string[];
   };
-  workspaceId:   string;
-  is_adaptive?:  boolean;
-  is_template?:  boolean;
+  workspaceId: string;
+  is_adaptive?: boolean;
+  is_template?: boolean;
 }
 
 export interface ConfigResponse {
   success: boolean;
   config: {
-    config_id:    string;
-    name:         string;
-    scheme_id:    string;
-    parameters:   Record<string, any>;
+    config_id: string;
+    name: string;
+    scheme_id: string;
+    parameters: Record<string, any>;
     workspace_id: string;
-    owner_id:     string;
-    is_template:  boolean;
-    is_adaptive:  boolean;
-    created_at:   string;
+    owner_id: string;
+    is_template: boolean;
+    is_adaptive: boolean;
+    created_at: string;
   };
 }
 
@@ -43,27 +46,27 @@ export interface RunResponse {
 }
 
 export interface RunStatusResponse {
-  success:     boolean;
-  status:      'pending' | 'running' | 'completed' | 'failed';
-  progress:    number;
-  results:     SimulationResults | null;
-  error:       string | null;
-  startedAt:   string;
+  success: boolean;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  results: SimulationResults | null;
+  error: string | null;
+  startedAt: string;
   completedAt: string;
 }
 
 export interface SimulationResults {
   // Field names exactly as output by adaptive_modulation_sim.m
-  ber?:                 number[];
-  snr_db?:              number[];      // Octave uses snr_db
-  snr_values?:          number[];      // fallback alias
-  throughput?:          number[];
-  overall_ber?:         number;        // aggregate BER across all SNR points
-  avg_throughput?:      number;
+  ber?: number[];
+  snr_db?: number[];      // Octave uses snr_db
+  snr_values?: number[];      // fallback alias
+  throughput?: number[];
+  overall_ber?: number;        // aggregate BER across all SNR points
+  avg_throughput?: number;
   spectral_efficiency?: number;
-  used_mod?:            string[];      // which scheme was used at each SNR point
+  used_mod?: string[];      // which scheme was used at each SNR point
   constellation?: {
-    ideal:    { real: number; imag: number }[];
+    ideal: { real: number; imag: number }[];
     received: { real: number; imag: number }[];
   };
   processing_time?: number;
@@ -72,7 +75,7 @@ export interface SimulationResults {
 @Injectable({ providedIn: 'root' })
 export class SimulationService {
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   // POST /api/configs
   createConfig(payload: CreateConfigPayload): Observable<ConfigResponse> {
@@ -103,24 +106,23 @@ export class SimulationService {
     );
   }
 
-  // for loading saved configs in the library
+  // GET /api/configs/user  — for loading saved configs in the library
   getMyConfigs(): Observable<any[]> {
     return this.http.get<any[]>(`${API}/configs/user`);
   }
 
-  //create a named/saved config (Save panel)
+  // Convenience: create a named/saved config (Save panel)
   saveConfig(payload: CreateConfigPayload & { is_template: boolean }): Observable<ConfigResponse> {
     return this.http.post<ConfigResponse>(`${API}/configs`, payload);
   }
 
-  //invite a user to ws
+  // Invite a user to a workspace
   inviteToWorkspace(workspaceId: string, email: string, role: string = 'editor'): Observable<any> {
     return this.http.post(`${API}/workspaces/${workspaceId}/invite`, { email, role });
   }
- 
+
   // Get workspace members
   getWorkspaceMembers(workspaceId: string): Observable<any> {
     return this.http.get(`${API}/workspaces/${workspaceId}/members`);
   }
-  
 }

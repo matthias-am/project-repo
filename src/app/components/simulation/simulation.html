@@ -12,8 +12,8 @@
         </svg>
       </div>
       <div>
-        <span class="brand-name">Modulation Pro</span>
-        <span class="brand-sub">Digital Modulation Analysis Tool</span>
+        <span class="brand-name">ModSim Pro</span>
+        <span class="brand-sub">Digital Modulation Analysis</span>
       </div>
     </div>
     <nav class="nav-links">
@@ -22,7 +22,7 @@
       <a routerLink="/library" routerLinkActive="active">Library</a>
     </nav>
     <div class="nav-right">
-      <button mat-icon-button><mat-icon>help_outline</mat-icon></button>
+      <!--<button mat-icon-button><mat-icon>help_outline</mat-icon></button>-->
       <button mat-icon-button [matMenuTriggerFor]="userMenu"><mat-icon>account_circle</mat-icon></button>
       <mat-menu #userMenu="matMenu" class="user-menu">
         <div class="user-menu-header">
@@ -44,7 +44,6 @@
           <mat-card-title>Simulation Configuration</mat-card-title>
           <mat-card-subtitle>Configure parameters for digital modulation analysis</mat-card-subtitle>
           <div class="card-actions">
-            <button mat-stroked-button class="action-btn" (click)="onShare()"><mat-icon>share</mat-icon> Share</button>
             <button mat-stroked-button class="action-btn" (click)="onSave()"><mat-icon>save</mat-icon> Save</button>
             <button mat-stroked-button class="action-btn" (click)="onExport()"><mat-icon>download</mat-icon>
               Export</button>
@@ -59,6 +58,38 @@
             (snrChange)="config.snr = +$event" (awgnChange)="config.awgn = +$event"
             (interferenceChange)="config.interference = +$event">
           </app-snr-input>
+
+          <!-- Adaptive modulation toggle -->
+          <div class="adaptive-row">
+            <div class="adaptive-toggle-row">
+              <mat-slide-toggle [(ngModel)]="isAdaptive">Adaptive Modulation</mat-slide-toggle>
+              <span class="adaptive-desc">{{ isAdaptive ? 'Automatically switches scheme based on SNR' : 'Fixed
+                modulation scheme' }}</span>
+            </div>
+            @if (isAdaptive) {
+            <div class="snr-profile-row">
+              <span class="profile-label">SNR Profile:</span>
+              <button class="profile-btn" [class.active]="snrProfile==='linear'"
+                (click)="snrProfile='linear'">Linear</button>
+              <button class="profile-btn" [class.active]="snrProfile==='sinusoidal'"
+                (click)="snrProfile='sinusoidal'">Sinusoidal</button>
+            </div>
+            }
+          </div>
+
+          <!-- Multi-scheme theoretical comparison -->
+          <div class="compare-row">
+            <span class="compare-label">Compare Theoretical BER:</span>
+            <div class="compare-chips">
+              @for (s of compareSchemes; track s.key) {
+              <button class="compare-chip" [class.active]="s.selected"
+                (click)="s.selected = !s.selected; toggleBerScheme(s.key)">
+                {{ s.label }}
+              </button>
+              }
+            </div>
+          </div>
+
           <div class="run-row">
             <button mat-flat-button class="btn-run" (click)="runSimulation()" [disabled]="isRunning">
               @if (isRunning) { <mat-spinner diameter="18"></mat-spinner><span>Running...</span> }
@@ -67,19 +98,6 @@
           </div>
         </mat-card-content>
       </mat-card>
-
-      <!-- Collaboration bar -->
-      @if (collaborators.length > 0) {
-      <div class="collab-bar" (click)="onShare()">
-        <div class="collab-avatars">
-          @for (c of collaborators; track c.name) {
-          <div class="collab-avatar" [style.background]="c.color" [title]="c.name">{{ c.initials }}</div>
-          }
-        </div>
-        <mat-icon>people</mat-icon>
-        <span>{{ collaborators.length }} collaborators online</span>
-      </div>
-      }
 
       @if (hasResults) {
       <!-- Constellation Diagram -->
@@ -106,19 +124,57 @@
           <mat-card-subtitle>Performance comparison across modulation schemes</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
+
+          <!-- Accumulated runs legend + clear button -->
+          @if (accumulatedRuns.length > 0) {
+          <div class="accumulated-row">
+            <span class="accumulated-label">Plotted Runs:</span>
+            <div class="accumulated-chips">
+              @for (run of accumulatedRuns; track run.label) {
+              <span class="run-chip">
+                <span class="chip-dot" [style.background]="run.color"></span>
+                {{ run.label }}
+              </span>
+              }
+            </div>
+            <button class="clear-btn" (click)="clearAccumulated()">
+              <mat-icon>clear_all</mat-icon> Clear
+            </button>
+          </div>
+          }
+
+          <!-- Theoretical overlay toggles -->
           <div class="scheme-toggles">
+            <span class="toggles-label">Theoretical overlays:</span>
             @for (scheme of berSchemes; track scheme.key) {
+            @if (scheme.key !== 'simulated') {
             <button class="scheme-chip" [class.active]="scheme.visible" [style.--chip-color]="scheme.color"
               (click)="toggleBerScheme(scheme.key)">
               <span class="chip-dot" [style.background]="scheme.color"></span>
               {{ scheme.label }}
             </button>
             }
+            }
           </div>
+
+          <!-- Adaptive scheme indicator -->
+          @if (isAdaptive && rawResults && $any(rawResults).used_mod) {
+          <div class="adaptive-indicator">
+            <mat-icon>auto_awesome</mat-icon>
+            <span>Adaptive switching: </span>
+            @for (mod of getAdaptiveSchemes(); track mod.scheme) {
+            <span class="adaptive-badge">
+              {{ mod.scheme }} @ {{ mod.snr_range }}
+            </span>
+            }
+          </div>
+          }
+
           <div class="chart-container"><canvas id="berChart"></canvas></div>
           <div class="chart-note">
             <mat-icon>info</mat-icon>
-            <span>Lower BER indicates better performance. Solid = simulated, dashed = theoretical.</span>
+            <span>Run multiple simulations to compare. Each run is added to the graph. Dashed lines =
+              theoretical.</span>
           </div>
         </mat-card-content>
       </mat-card>
@@ -142,21 +198,11 @@
           <span class="metric-value">{{ results.requiredSnr | number:'1.0-0' }} dB</span>
           <mat-icon class="metric-icon signal">signal_cellular_alt</mat-icon>
         </div>
-        <!--<div class="metric-card">
-          <span class="metric-label">Spectral Efficiency</span>
-          <span class="metric-value">{{ results.spectralEfficiency | number:'1.1-1' }} bps/Hz</span>
-          <mat-icon class="metric-icon speed">speed</mat-icon>
-        </div> <!-->
         <div class="metric-card">
           <span class="metric-label">Error Rate</span>
           <span class="metric-value">{{ results.errorRate | number:'1.0-2' }}</span>
           <mat-icon class="metric-icon warn">warning_amber</mat-icon>
         </div>
-        <!--- <div class="metric-card"> 
-          <span class="metric-label">Processing Time</span>
-          <span class="metric-value">{{ results.processingTime }}s</span>
-          <mat-icon class="metric-icon ok">show_chart</mat-icon>
-        </div> -->
       </div>
       <mat-divider></mat-divider>
       <div class="sidebar-section">
@@ -184,7 +230,7 @@
   </div>
 
   <!-- Panel backdrop -->
-  @if (showSavePanel || showExportPanel || showSharePanel) {
+  @if (showSavePanel || showExportPanel) {
   <div class="panel-backdrop" (click)="closeAllPanels()"></div>
   }
 
@@ -240,9 +286,7 @@
     <p class="panel-sub">Choose export format and select what to include</p>
     <div class="export-formats">
       @for (fmt of [{id:'json',label:'JSON',desc:'Machine-readable format',ext:'.json'},
-      {id:'csv',label:'CSV',desc:'Spreadsheet-compatible',ext:'.csv'},
-      {id:'pdf',label:'PDF',desc:'Complete report with charts',ext:'.pdf'},
-      {id:'png',label:'PNG Images',desc:'Export charts as images',ext:'.zip'}]; track fmt.id) {
+      {id:'csv',label:'CSV',desc:'Spreadsheet-compatible',ext:'.csv'}]; track fmt.id) {
       <div class="export-card" [class.selected]="exportFormat===fmt.id" (click)="exportFormat = $any(fmt.id)">
         <span class="export-label">{{ fmt.label }}</span>
         <span class="export-desc">{{ fmt.desc }}</span>
@@ -272,87 +316,5 @@
   </div>
   }
 
-  <!-- Share Panel -->
-  @if (showSharePanel) {
-  <div class="slide-panel">
-    <div class="panel-header">
-      <h3>Share Simulation</h3>
-      <button mat-icon-button (click)="closeAllPanels()"><mat-icon>close</mat-icon></button>
-    </div>
-    <p class="panel-sub">Collaborate on this simulation with others</p>
-    <div class="share-tabs">
-      <button class="share-tab" [class.active]="shareTab==='link'" (click)="shareTab='link'">
-        <mat-icon>link</mat-icon> Link
-      </button>
-      <button class="share-tab" [class.active]="shareTab==='invite'" (click)="shareTab='invite'">
-        <mat-icon>person_add</mat-icon> Invite
-      </button>
-      <button class="share-tab" [class.active]="shareTab==='users'" (click)="shareTab='users'">
-        <mat-icon>group</mat-icon> Members
-      </button>
-    </div>
-
-    @if (shareTab === 'link') {
-    <div class="share-body">
-      <label class="field-label">Share Link</label>
-      <div class="link-row">
-        <input class="link-input" [value]="shareLink" readonly />
-        <button mat-icon-button (click)="copyLink()">
-          <mat-icon>{{ linkCopied ? 'check' : 'content_copy' }}</mat-icon>
-        </button>
-      </div>
-      <div class="toggle-row">
-        <mat-slide-toggle [(ngModel)]="allowEditing">Allow Editing</mat-slide-toggle>
-        <span class="toggle-desc">Users can modify parameters</span>
-      </div>
-      <div class="toggle-row">
-        <mat-slide-toggle [(ngModel)]="allowComments">Allow Comments</mat-slide-toggle>
-        <span class="toggle-desc">Users can leave feedback</span>
-      </div>
-      <div class="realtime-badge"><mat-icon>people</mat-icon> Real-time collaboration enabled</div>
-    </div>
-    }
-
-    @if (shareTab === 'invite') {
-    <div class="share-body">
-      <label class="field-label">Invite by Email</label>
-      <div class="invite-row">
-        <input class="invite-input" [(ngModel)]="inviteEmail" placeholder="colleague@example.com" type="email" />
-        <select class="role-select" [(ngModel)]="inviteRole">
-          <option value="editor">Editor</option>
-          <option value="viewer">Viewer</option>
-        </select>
-      </div>
-      @if (inviteError) { <div class="invite-error">{{ inviteError }}</div> }
-      @if (inviteSuccess) { <div class="invite-success">{{ inviteSuccess }}</div> }
-      <button mat-flat-button class="btn-primary invite-btn" (click)="sendInvite()" [disabled]="!inviteEmail">
-        <mat-icon>send</mat-icon> Send Invite
-      </button>
-    </div>
-    }
-
-    @if (shareTab === 'users') {
-    <div class="share-body">
-      <label class="field-label">Workspace Members</label>
-      @if (workspaceMembers.length === 0) {
-      <p class="no-members">No members yet. Use the Invite tab to add collaborators.</p>
-      }
-      @for (member of workspaceMembers; track member.userId) {
-      <div class="member-row">
-        <div class="member-avatar" [style.background]="memberColor(member.username)">
-          {{ member.username.slice(0,2).toUpperCase() }}
-        </div>
-        <div class="member-info">
-          <span class="member-name">{{ member.username }}</span>
-          <span class="member-email">{{ member.email }}</span>
-        </div>
-        <span class="member-role" [class.role-owner]="member.role==='owner'">{{ member.role }}</span>
-      </div>
-      }
-    </div>
-    }
-
-  </div>
-  }
 
 </div>

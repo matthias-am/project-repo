@@ -11,17 +11,17 @@
         </svg>
       </div>
       <div>
-        <span class="brand-name">Modulation Pro</span>
-        <span class="brand-sub">Digital Modulation Analysis Tool</span>
+        <span class="brand-name">ModSim Pro</span>
+        <span class="brand-sub">Digital Modulation Analysis</span>
       </div>
     </div>
     <nav class="nav-links">
-      <!--<a routerLink="/dashboard"  routerLinkActive="active">Dashboard</a> -->
+      <!--<a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>-->
       <a routerLink="/simulation" routerLinkActive="active">Simulations</a>
       <a routerLink="/library" routerLinkActive="active">Library</a>
     </nav>
     <div class="nav-right">
-      <button mat-icon-button><mat-icon>help_outline</mat-icon></button>
+      <!--<button mat-icon-button><mat-icon>help_outline</mat-icon></button>-->
       <button mat-icon-button [matMenuTriggerFor]="userMenu"><mat-icon>account_circle</mat-icon></button>
       <mat-menu #userMenu="matMenu" class="user-menu">
         <div class="user-menu-header">
@@ -72,17 +72,21 @@
     } @else if (filtered.length > 0) {
     <div class="cards-grid">
       @for (sim of filtered; track sim.id) {
-      <div class="sim-card" matRipple>
+      <!-- Use a native button so click always fires -->
+      <button class="sim-card" (click)="openDetail(sim)">
         <div class="card-top">
           <span class="scheme-badge" [style.background]="schemeColor(sim.scheme) + '1a'"
             [style.color]="schemeColor(sim.scheme)" [style.border-color]="schemeColor(sim.scheme) + '40'">
             {{ sim.scheme }}
           </span>
-          <button class="star-btn" (click)="toggleStar(sim, $event)" [class.starred]="sim.starred">
+          <span class="star-icon" (click)="toggleStar(sim, $event)">
             <mat-icon>{{ sim.starred ? 'star' : 'star_border' }}</mat-icon>
-          </button>
+          </span>
         </div>
         <h3 class="card-name">{{ sim.name }}</h3>
+        @if (sim.description) {
+        <p class="card-desc">{{ sim.description }}</p>
+        }
         <div class="card-meta">
           <mat-icon class="meta-icon">schedule</mat-icon>
           <span>{{ sim.date }}</span>
@@ -91,8 +95,9 @@
         <div class="card-footer">
           <span class="status-dot dot-completed"></span>
           <span class="status-label label-completed">{{ sim.status }}</span>
+          <span class="card-snr">SNR: {{ sim.snr }} dB</span>
         </div>
-      </div>
+      </button>
       }
     </div>
     } @else {
@@ -104,4 +109,61 @@
     }
 
   </div>
+
+  <!-- Detail panel backdrop -->
+  @if (showDetail) {
+  <div class="panel-backdrop" (click)="closeDetail()"></div>
+  }
+
+  <!-- Detail panel -->
+  @if (showDetail && selectedSim) {
+  <div class="detail-panel">
+    <div class="panel-header">
+      <div class="panel-title-row">
+        <span class="scheme-badge" [style.background]="schemeColor(selectedSim.scheme) + '1a'"
+          [style.color]="schemeColor(selectedSim.scheme)" [style.border-color]="schemeColor(selectedSim.scheme) + '40'">
+          {{ selectedSim.scheme }}
+        </span>
+        <h3>{{ selectedSim.name }}</h3>
+      </div>
+      <button mat-icon-button (click)="closeDetail()"><mat-icon>close</mat-icon></button>
+    </div>
+
+    @if (selectedSim.description) {
+    <p class="detail-desc">{{ selectedSim.description }}</p>
+    }
+
+    <div class="detail-section">
+      <h4 class="detail-heading">CONFIGURATION</h4>
+      <div class="detail-row"><span>Modulation Scheme</span><strong>{{ selectedSim.scheme }}</strong></div>
+      <div class="detail-row"><span>Simulation Method</span>
+        <strong>
+          {{ selectedSim.is_adaptive ? 'Adaptive Modulation' : selectedSim.method }}
+          @if (selectedSim.is_adaptive) {
+          <span class="adaptive-tag">adaptive</span>
+          }
+        </strong>
+      </div>
+      @if (selectedSim.is_adaptive) {
+      <div class="detail-row"><span>SNR Profile</span><strong>{{ selectedSim.snr_profile }}</strong></div>
+      }
+      <div class="detail-row"><span>SNR (Eb/N0)</span><strong>{{ selectedSim.snr }} dB</strong></div>
+      <div class="detail-row"><span>SNR Range</span><strong>{{ selectedSim.snr_min }} – {{ selectedSim.snr_max }}
+          dB</strong></div>
+      <div class="detail-row"><span>SNR Step</span><strong>{{ selectedSim.snr_step }} dB</strong></div>
+      <div class="detail-row"><span>Number of Bits</span><strong>{{ selectedSim.num_bits | number }}</strong></div>
+      <div class="detail-row"><span>Number of Symbols</span><strong>{{ selectedSim.num_symbols | number }}</strong>
+      </div>
+      <div class="detail-row"><span>Saved On</span><strong>{{ selectedSim.date }}</strong></div>
+    </div>
+
+    <div class="panel-footer">
+      <button mat-stroked-button (click)="closeDetail()">Close</button>
+      <button mat-flat-button class="btn-load" (click)="loadIntoSimulator()">
+        <mat-icon>play_arrow</mat-icon> Load into Simulator
+      </button>
+    </div>
+  </div>
+  }
+
 </div>
