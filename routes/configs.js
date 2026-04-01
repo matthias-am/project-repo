@@ -4,14 +4,19 @@ const configController = require('../controllers/SimConfigController');
 
 //Middleware and services
 const protect = require('../middleware/auth');
-const {valandNormParamsMiddleware} = require('../services/validParams');
-const checkWSAccess = require('../middleware/workspacePermission');
+const { valandNormParamsMiddleware } = require('../services/validParams');
+const checkWSAccess = require('../middleware/workspacemid');
 
 router.use(protect);
 
 
 //create new config
-router.post('/', valandNormParamsMiddleware, checkWSAccess, configController.createConfig);
+router.post('/', (req, res, next) => {
+    console.log('=== HIT POST /api/configs ===');
+    next();
+}, valandNormParamsMiddleware, configController.createConfig);
+
+//router.post('/', configController.createConfig);
 
 //get all configs for user
 router.get(
@@ -20,14 +25,20 @@ router.get(
 );
 
 //get all the configs used in a workspace
-router.get(
+/*router.get(
     '/workspace/:workspaceId',
     checkWSAccess,
     configController.getConfigsByWS
+); */
+
+router.patch(
+    '/:configId/results',
+    configController.saveResults
 );
+
 //get config by Id
 router.get(
-    '/:configId', checkWSAccess,configController.getConfigById
+    '/:configId', checkWSAccess, configController.getConfigById
 );
 
 //get templates
@@ -39,8 +50,13 @@ router.get(
 //executes a sim run from config
 router.post(
     '/:configId/run',
-    checkWSAccess,
     configController.createRunfromConfig
+);
+
+// Delete a config
+router.delete(
+    '/:configId',
+    configController.deleteConfig
 );
 
 module.exports = router;

@@ -1,4 +1,4 @@
-const {spawn} = require('child_process');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
 const SimRun = require('../models/SimRun');
@@ -7,11 +7,11 @@ const Oservice = require('../services/OctaveService');
 
 const jobQueue = []; //array to hold pending jobs
 let isProcessing = false; //track if queue processor running
-const MAX_CONCURRENT = 8;
+const MAX_CONCURRENT = 2;
 let activeProcesses = 0;
 
 async function addSimJob(runId, isAdaptive = false) {
-    jobQueue.push({ runId, isAdaptive}); //add job obj to array
+    jobQueue.push({ runId, isAdaptive }); //add job obj to array
     console.log(`Job added to queue: runId=${runId}, adaptive=${isAdaptive}. Queue length: ${jobQueue.length}`); //logs job addition with queue length
 
     if (!isProcessing) {
@@ -19,7 +19,7 @@ async function addSimJob(runId, isAdaptive = false) {
     } //start queue processer if not running
 }
 
-async function processQueue(){
+async function processQueue() {
     isProcessing = true;
 
     while (jobQueue.length > 0 && activeProcesses < MAX_CONCURRENT) {
@@ -34,7 +34,7 @@ async function processQueue(){
     //function to handle each job
     async function processJob(job) {
 
-        try{
+        try {
             const {
                 runId,
                 userId, workspaceId,
@@ -48,7 +48,7 @@ async function processQueue(){
 
             console.log(`[JobQueue] Job completed successfully: runId=${runId}`);
         } catch (err) {
-            console.error (`Job failed for run ${job.runId}:`, err);
+            console.error(`Job failed for run ${job.runId}:`, err);
         }
-}
+    }
 }

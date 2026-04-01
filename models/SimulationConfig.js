@@ -41,13 +41,13 @@ const simulationConfigSchema = new mongoose.Schema({
     },
 
     parameters: {
-        type: mongoose.Schema. Types.Mixed,
+        type: mongoose.Schema.Types.Mixed,
         required: true,
         default: {}
     },
 
-//Adaptive modulation
-    is_adaptive: { 
+    //Adaptive modulation
+    is_adaptive: {
         type: Boolean, default: false
 
     },
@@ -67,7 +67,7 @@ const simulationConfigSchema = new mongoose.Schema({
     target_ber: {
         type: Number, default: 1e-3
     },
-    
+
 
     // for saving adaptive experiments
     parent_config_id: {
@@ -90,12 +90,15 @@ const simulationConfigSchema = new mongoose.Schema({
     last_modified: {
         type: Date,
         default: Date.now
-    }
+    },
+    results: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
 });
 
-simulationConfigSchema.pre('save', function(next) {
+simulationConfigSchema.pre('save', async function () {
     this.last_modified = Date.now();
-    next();
 });
 
 module.exports = mongoose.model('SimulationConfig', simulationConfigSchema);

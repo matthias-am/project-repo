@@ -25,15 +25,16 @@ const auditLogSchema = new mongoose.Schema({ //creates a new mongoose schema for
         enum: ['config', 'run', 'workspace'],
         required: true
     },
-    entityId: { type: String, required: true
+    entityId: {
+        type: String, required: true
     },
     action: {
         type: String,
-        enum: ['create', 'update', 'execute', 'failed', 'share', 'delete'],
+        enum: ['create', 'update', 'execute', 'complete', 'fail', 'share', 'delete'],
         required: true
     },
-    details: {type: Object, default: {}},
-    timestamp: {type: Date, default: Date.now}
+    details: { type: Object, default: {} },
+    timestamp: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema);

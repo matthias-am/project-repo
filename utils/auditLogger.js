@@ -5,10 +5,10 @@ const AuditLog = require('../models/AuditLog');
 async function logAudit(userId, workspaceId, entityType, entityId, action, details = {}){
     try{
         await AuditLog.create({
-            user_id: userId,
-            workspace_id: workspaceId,
-            entity_type: entityType,
-            entity_id: entityId,
+            userId,
+            workspaceId,
+            entityType,
+            entityId,
             action,
             details,
             timestamp: new Date()

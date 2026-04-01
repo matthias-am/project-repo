@@ -33,10 +33,10 @@ for i = 1:length(snr_range)
       ber_theo(i) = 0.5 * erfc(sqrt(ebn0_lin));
     case 'QPSK'
       ber_theo(i) = 0.5 * erfc(sqrt(ebn0_lin));   % very good approx for Gray QPSK
-    case {'16QAM', '64QAM'}
+    case {'16QAM', '64QAM','256QAM', '1024QAM' }
       M = str2num(mod_type(1:end-3));   % 16 or 64
       k = log2(M);
-      ber_theo(i) = (4/k) * (1 - 1/sqrt(M)) * 0.5 * erfc( sqrt( (3*k*ebn0_lin)/(M-1) ) );
+      ber_theo(i) = (4/k) * (1 - 1/sqrt(M)) * 0.5 * erfc( sqrt( (3*k*ebn0_lin)/2*(M-1) ) );
     otherwise
       ber_theo(i) = NaN;  % not implemented
   end

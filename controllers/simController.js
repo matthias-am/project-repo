@@ -46,18 +46,18 @@ const JobQueue = require('../services/Jobqueue');
 
 exports.runFullAnalysis = async (req, res) => {
   try {
-    if (!req.body.configId){ //checks if configID provided in req body
-      return res.status(400).json({message: 'configId is required to run a simulation'}); //returns 400 if configID missing
+    if (!req.body.configId) { //checks if configID provided in req body
+      return res.status(400).json({ message: 'configId is required to run a simulation' }); //returns 400 if configID missing
     }
 
     //Load config from DB (must be in the same workspace)
-    const config = await SimulationConfig.findOne ({
+    const config = await SimulationConfig.findOne({
       config_id: req.body.configId,
       workspace_id: req.workspaceId
     });
 
     if (!config) {
-      return res.status(404).json({message: 'Configuration not found or not in this workspace'}); //return 404 is config not found
+      return res.status(404).json({ message: 'Configuration not found or not in this workspace' }); //return 404 is config not found
     }
 
     const params = {
@@ -80,7 +80,7 @@ exports.runFullAnalysis = async (req, res) => {
       error: null
     });
 
-    const isAdaptive = req.body.is_adaptive === true || (await SimulationConfig.findOne({ config_id: req.body.configId}))?.is_adaptive === true; //checks if sim should be adaptive through reg body or adaptive flag set to true
+    const isAdaptive = req.body.is_adaptive === true || (await SimulationConfig.findOne({ config_id: req.body.configId }))?.is_adaptive === true; //checks if sim should be adaptive through reg body or adaptive flag set to true
 
     JobQueue.addSimJob( //adds to job queue
       run._id,
@@ -88,7 +88,7 @@ exports.runFullAnalysis = async (req, res) => {
       req.workspaceId,
       params,
       isAdaptive //adaptive flag
-    ); 
+    );
 
     //message to client as soon as sim starts
     res.status(202).json({
@@ -98,55 +98,55 @@ exports.runFullAnalysis = async (req, res) => {
     }); //obv checks the run status
 
     Oservice.processFullSim(run._id, req.user.id, req.workspaceId, params, isAdaptive) //octave service to run sim in bg
-    .catch(err => console.error('Background error:', err));
+      .catch(err => console.error('Background error:', err));
 
-  }catch (err) {
-    res.status(500).json({message: 'Failed to start simulation', error: err.message });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to start simulation', error: err.message });
   }
 }
 
-    //Background task to mask it as running
+//Background task to mask it as running
 
-    /*(async () => {
-      try {
-    await SimulationRun.findByIdAndUpdate(run._id, {
-      status: 'running',
-      startedAt: new Date()
-    });
+/*(async () => {
+  try {
+await SimulationRun.findByIdAndUpdate(run._id, {
+  status: 'running',
+  startedAt: new Date()
+});
 
-    //Log the start of the sim
+//Log the start of the sim
 
-    await logAudit(req.user.id, req.workspaceId, run._id.toString(), 'execute', {schemeId: req.body.schemeId, snr_min: req.body.snr_min, snr_max: req.body.snr_max});
+await logAudit(req.user.id, req.workspaceId, run._id.toString(), 'execute', {schemeId: req.body.schemeId, snr_min: req.body.snr_min, snr_max: req.body.snr_max});
 
-  /*await AuditLog.create({
-    user_id: req.user.id,
-    workspace_id: req.workspaceId,
-    entity_type: run._id.toString(),
-    action: 'execute',
-    details: {schemeId: req.body.schemeId, snr_min: req.body.snr_min, snr_max: req.body.snr_max}
-  }); */
-  
-  // Run Octave
-  /*const results = await Oservice.runSimulation(req.body);
+/*await AuditLog.create({
+user_id: req.user.id,
+workspace_id: req.workspaceId,
+entity_type: run._id.toString(),
+action: 'execute',
+details: {schemeId: req.body.schemeId, snr_min: req.body.snr_min, snr_max: req.body.snr_max}
+}); */
 
-  //save successful sim
-  await SimulationRun.findByIdAndUpdate(run._id, {
-    status: 'completed',
-    completedAt: new Date().
-    results
-  });
+// Run Octave
+/*const results = await Oservice.runSimulation(req.body);
 
-  //Log the completion of the sim
-  await logAudit(req.user.id, req.workspaceId, 'run', run._id.toString(), 'complete', {success: true});
+//save successful sim
+await SimulationRun.findByIdAndUpdate(run._id, {
+  status: 'completed',
+  completedAt: new Date().
+  results
+});
 
- /* await AuditLog.create({
-    user_id: req.user.id,
-    workspace_id: req.workspaceId,
-    entity_type: 'run',
-    entity_id:run._id.toString(),
-    action: 'complete',
-    details: {success: true}
-  }); */
+//Log the completion of the sim
+await logAudit(req.user.id, req.workspaceId, 'run', run._id.toString(), 'complete', {success: true});
+
+/* await AuditLog.create({
+  user_id: req.user.id,
+  workspace_id: req.workspaceId,
+  entity_type: 'run',
+  entity_id:run._id.toString(),
+  action: 'complete',
+  details: {success: true}
+}); */
 
 /*}catch (err) {
   console.error('Background simulation failed: ', err);
@@ -159,14 +159,14 @@ exports.runFullAnalysis = async (req, res) => {
 
   await logAudit(req.user.id, req.workspaceId, 'run', run._id.toString(), 'fail', {error: err.message}); */
 
- /* await AuditLog.create({
-    user_id: req.user.id,
-    workspace_id: req.workspaceId,
-    entity_type: 'run',
-    entity_id: run._id.toString(),
-    action: 'fail',
-    details: {error: err.message}
-  }); */
+/* await AuditLog.create({
+   user_id: req.user.id,
+   workspace_id: req.workspaceId,
+   entity_type: 'run',
+   entity_id: run._id.toString(),
+   action: 'fail',
+   details: {error: err.message}
+ }); */
 /*}
     })();
 
@@ -318,7 +318,7 @@ exports.runFullAnalysis = async (req, res) => {
 
 */
 
-exports.deleteSimulation = async(req, res) => { //export delete function
+exports.deleteSimulation = async (req, res) => { //export delete function
   try {
     const runId = req.params.id;
     const workspaceId = req.workspaceId;
@@ -329,17 +329,17 @@ exports.deleteSimulation = async(req, res) => { //export delete function
     });
 
     if (!run) {
-      return res.status(404).json({message: 'Simulation not found or not in this workspace'}); // returns 404 if run does not exist
+      return res.status(404).json({ message: 'Simulation not found or not in this workspace' }); // returns 404 if run does not exist
     }
     if (run.status === 'running') {
-      return res.status(400).json({message: 'Cannot delete a running simulation'}); // checks if simulation is running atm
+      return res.status(400).json({ message: 'Cannot delete a running simulation' }); // checks if simulation is running atm
     }
 
-    await SimulationRun.deleteOne({_id: runId}); //deletes the sim from the database
+    await SimulationRun.deleteOne({ _id: runId }); //deletes the sim from the database
 
 
     //Log the deletion in audit log
-    await logAudit(req.user.id, req.workspaceId,'run' , run._id.toString(), 'delete', {deletedRunStatus: run.status});
+    await logAudit(req.user.id, req.workspaceId, 'run', run._id.toString(), 'delete', { deletedRunStatus: run.status });
 
     /*await AuditLog.create({
       user_id: req.user.id,
@@ -350,14 +350,14 @@ exports.deleteSimulation = async(req, res) => { //export delete function
       details: {deletedRunStatus: run.status}
     }); */
 
-    res.json ({
+    res.json({
       success: true,
       message: 'Simulation deleted',
       deletedId: runId
     }); //returns success response and id of deleted run
   } catch (err) {
     console.error('Delete simulation error:', err); //catches error and logs it
-    res.status(500).json({message: 'Could not delete simulation', error: err.message});
+    res.status(500).json({ message: 'Could not delete simulation', error: err.message });
   } //returns 500 error is could not delete
 };
 
@@ -365,26 +365,34 @@ exports.getSimulationStatus = async (req, res) => { //exports status check
   try {
     const runId = req.params.id; //Gets run ID from URL
 
-    const run = await SimulationRun.findOne({_id: runId, workspace_id: req.workspaceId}) //finds run by ID and workspace
-    .select('status results error startedAt completedAt executor'); //selects these specific fields
+    const run = await SimulationRun.findOne({ _id: runId, workspaceId: req.query.workspaceId }) //finds run by ID and workspace
+      .select('status results error startedAt completedAt executor'); //selects these specific fields
+
+    console.log('[getSimulationStatus] raw run:', JSON.stringify({
+      id: run?._id,
+      status: run?.status,
+      hasResults: !!run?.results,
+      statusMessage: run?.statusMessage
+    }));
 
     if (!run) {
-      return res.status(404).json({messsage: 'Simulation not found or not in your workspace'}); //return 404 if run not found
+      return res.status(404).json({ messsage: 'Simulation not found or not in your workspace' }); //return 404 if run not found
     }
 
-    res.json ({
+    res.json({
       success: true,
       status: run.status,
-      progress: run.status === 'completed' ? 100: run.status === 'running' ? 50:10, //calcs progress , 10 for pending/failed, 50 running, 100 completed 
+      progress: run.status === 'completed' ? 100 : run.status === 'running' ? 50 : 10, //calcs progress , 10 for pending/failed, 50 running, 100 completed 
       results: run.results || null,
-      error: run.error || null,
+      error: run.errorLog || null,
+      statusMessage: run.statusMessage || null,
       startedAt: run.startedAt,
       completedAt: run.completedAt
     });
 
   } catch (err) {
-    console.error ('Status fetch error:', err);
-    res.status(500).json({message: 'Error fetching simulation status', error: err.message}); //returns 500 when cannot fetch or error fetching
+    console.error('Status fetch error:', err);
+    res.status(500).json({ message: 'Error fetching simulation status', error: err.message }); //returns 500 when cannot fetch or error fetching
   }
-  };
+};
 

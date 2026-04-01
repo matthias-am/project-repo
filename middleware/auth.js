@@ -19,7 +19,9 @@ module.exports = async (req, res, next) => {
 
   try { //checks token signature and expirery 
     const decoded = jwt.verify(token, process.env.JWT_ST);
+   
     req.user = await user.findById(decoded.userId).select('-password'); //attaches user doc to the req
+    
     if (!req.user) {
       return res.status(401).json({ message: 'User not found' }); //valid token but deleted user
     }
