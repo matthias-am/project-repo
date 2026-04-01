@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken'); //library that creates and verifies JWT
 const { validationResult } = require('express-validator'); //checks for validation errors from middleware before
 const User = require('../models/User'); //require  user schema model in folder models
 const Workspace = require('../models/Workspace');
-const WorkspaceMember = require('../models/WSmem');
+
 
 // function to register a new user
 exports.register = async (req, res) => {

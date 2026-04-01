@@ -141,8 +141,10 @@ end
   if interference_power > 0
     amp          = sqrt(interference_power);
     phase_offset = 2 * pi * rand();
+     freq_offset   = rand();  % normalized frequency 0–1
+    n  = (0:num_syms-1);  % proper index vector
     interferer   = amp * exp(1j * (phase_offset + 2*pi * rand() * (1:num_syms)));
-    noisy        = noisy + interferer;
+    noisy        = noisy + interferer(:)';
   end
 
   % Demodulate
