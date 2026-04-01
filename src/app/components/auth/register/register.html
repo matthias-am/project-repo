@@ -1,18 +1,23 @@
 <div class="login-wrapper">
-  <div class="bg-grid"></div>
-  <div class="bg-glow"></div>
-
+  <!-- Background decorative elements -->
+  <div class="bg-grid"></div> <!-- Grid pattern bg-->
+  <div class="bg-glow"></div> <!--glow type bg-->
+  <!-- Top navigation bar (toolbar) -->
   <mat-toolbar class="topbar">
     <div class="brand">
+      <!-- Brand logo/icon using inline SVG -->
       <div class="brand-icon">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <!-- Inner circle (signal dot) -->
           <circle cx="12" cy="12" r="3" fill="#22d3ee" />
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
-            stroke="#22d3ee" stroke-width="1.5" fill="none" />
-          <path d="M2 12h4M18 12h4M12 2v4M12 18v4" stroke="#22d3ee" stroke-width="1.5"
-            stroke-linecap="round" />
+          <!-- Outer circle (signal ring) -->
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke="#22d3ee"
+            stroke-width="1.5" fill="none" />
+          <!-- Cross axes -->
+          <path d="M2 12h4M18 12h4M12 2v4M12 18v4" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" />
         </svg>
       </div>
+      <!-- Brand text -->
       <div>
         <span class="brand-name">ModSim Pro</span>
         <span class="brand-sub">Digital Modulation Analysis</span>
@@ -20,108 +25,114 @@
     </div>
   </mat-toolbar>
 
+  <!-- Main content area -->
   <main class="login-main">
+
+    <!-- Card container for centering and styling -->
     <div class="card-wrapper">
+
+      <!-- Main registration card -->
       <mat-card class="login-card" [class.shake]="registerError" appearance="outlined">
+        <!--shake adds the error shake ani-->
+
+        <!--Card Header-->
         <mat-card-header>
           <mat-card-title>Create Account</mat-card-title>
           <mat-card-subtitle>Register for a ModSim Pro account</mat-card-subtitle>
         </mat-card-header>
 
+        <!-- Card Content (form area) -->
         <mat-card-content>
+
+          <!-- Error alert (shown only if registration fails) -->
           @if (registerError) {
-            <div class="alert-error">
-              <mat-icon>error_outline</mat-icon>
-              <span>{{ errorMessage }}</span>
-            </div>
+          <div class="alert-error">
+            <mat-icon>error_outline</mat-icon>
+            <span>{{ errorMessage }}</span>
+          </div>
           }
 
+          <!-- Registration Form -->
           <form (ngSubmit)="onSubmit()" #regForm="ngForm" novalidate>
 
-            <!-- Username -->
+            <!-- Username Field -->
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Username</mat-label>
-              <input matInput type="text" name="username"
-                     placeholder="Choose a username"
-                     [(ngModel)]="fields.username"
-                     #username="ngModel"
-                     required minlength="3"
-                     autocomplete="username" />
-              <mat-icon matPrefix>person_outline</mat-icon>
+              <input matInput type="text" name="username" placeholder="Choose a username" [(ngModel)]="fields.username"
+                #username="ngModel" required minlength="3" autocomplete="username" /> <!--ngmodel = two way binding-->
+              <mat-icon matPrefix>person_outline</mat-icon> <!--Prefix icon-->
+
+              <!--Validation error message-->
               @if (username.invalid && username.touched) {
-                <mat-error>Username must be at least 3 characters</mat-error>
+              <mat-error>Username must be at least 3 characters</mat-error>
               }
             </mat-form-field>
 
-            <!-- Email -->
+            <!-- Email Field-->
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Email</mat-label>
-              <input matInput type="email" name="email"
-                     placeholder="Enter your email"
-                     [(ngModel)]="fields.email"
-                     #email="ngModel"
-                     required email
-                     autocomplete="email" />
+              <input matInput type="email" name="email" placeholder="Enter your email" [(ngModel)]="fields.email"
+                #email="ngModel" required email autocomplete="email" />
               <mat-icon matPrefix>mail_outline</mat-icon>
               @if (email.invalid && email.touched) {
-                <mat-error>Please enter a valid email</mat-error>
+              <mat-error>Please enter a valid email</mat-error>
               }
             </mat-form-field>
 
-            <!-- Password -->
+            <!-- Password Field-->
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Password</mat-label>
-              <input matInput [type]="showPassword ? 'text' : 'password'"
-                     name="password"
-                     placeholder="Create a password"
-                     [(ngModel)]="fields.password"
-                     #password="ngModel"
-                     required minlength="6"
-                     autocomplete="new-password" />
+              <input matInput [type]="showPassword ? 'text' : 'password'" name="password"
+                placeholder="Create a password" [(ngModel)]="fields.password" #password="ngModel" required minlength="6"
+                autocomplete="new-password" />
               <mat-icon matPrefix>lock_outline</mat-icon>
+
+              <!--PW visibility toggle-->
               <button mat-icon-button matSuffix type="button" (click)="togglePassword()">
                 <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
               @if (password.invalid && password.touched) {
-                <mat-error>Password must be at least 6 characters</mat-error>
+              <mat-error>Password must be at least 6 characters</mat-error>
               }
             </mat-form-field>
 
-            <!-- Confirm Password -->
+            <!-- Confirm Password Field-->
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Confirm Password</mat-label>
-              <input matInput [type]="showConfirmPassword ? 'text' : 'password'"
-                     name="confirmPassword"
-                     placeholder="Confirm your password"
-                     [(ngModel)]="fields.confirmPassword"
-                     #confirmPassword="ngModel"
-                     required
-                     autocomplete="new-password" />
+              <input matInput [type]="showConfirmPassword ? 'text' : 'password'" name="confirmPassword"
+                placeholder="Confirm your password" [(ngModel)]="fields.confirmPassword" #confirmPassword="ngModel"
+                required autocomplete="new-password" />
               <mat-icon matPrefix>lock_outline</mat-icon>
+              <!--confirm PW vis toggle-->
               <button mat-icon-button matSuffix type="button" (click)="toggleConfirmPassword()">
                 <mat-icon>{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
+
+              <!--password match validation error-->
               @if (passwordMismatch) {
-                <mat-error>Passwords do not match</mat-error>
+              <mat-error>Passwords do not match</mat-error>
               }
             </mat-form-field>
 
-            <button mat-flat-button class="btn-login full-width"
-                    type="submit"
-                    [disabled]="isLoading || regForm.invalid || passwordMismatch">
+            <!--Submit button-->
+            <button mat-flat-button class="btn-login full-width" type="submit"
+              [disabled]="isLoading || regForm.invalid || passwordMismatch">
+
+              <!--Loading spinner-->
               @if (isLoading) {
-                <mat-spinner diameter="18" />
-                <span>Creating account...</span>
+              <mat-spinner diameter="18" />
+              <span>Creating account...</span>
               } @else {
-                <span>Create Account</span>
+              <span>Create Account</span>
               }
             </button>
 
           </form>
         </mat-card-content>
 
+        <!-- Card Footer with login link -->
         <mat-card-footer class="card-footer">
-          <p>Already have an account? <a routerLink="/login">Sign in here</a></p>
+          <p>Already have an account? <a routerLink="/login">Sign in here</a></p> <!-- Navigation to login page -->
         </mat-card-footer>
       </mat-card>
     </div>

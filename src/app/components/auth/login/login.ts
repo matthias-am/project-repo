@@ -12,8 +12,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { CommonModule } from '@angular/common';
-import { Auth } from '../../../services/auth';
-import { WorkspaceService } from '../../../services/workspace.service'
+import { Auth } from '../../../services/auth-services/auth';
+import { WorkspaceService } from '../../../services/workspace service/workspace.service'
 
 //imports and etc
 @Component({

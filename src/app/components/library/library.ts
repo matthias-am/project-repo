@@ -10,7 +10,8 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { HttpClient } from '@angular/common/http';
-import { Auth } from '../../services/auth';
+import { Auth } from '../../services/auth-services/auth';
+import { SimulationService, SimulationResults } from '../../services/sim-services/simulation.service';
 
 export interface SimulationEntry {
   id: string;
@@ -29,6 +30,10 @@ export interface SimulationEntry {
   description: string;
   is_adaptive: boolean;
   snr_profile: string;
+  awgn: number;
+  interference: number;
+  owner_id: string;
+  results: SimulationResults | null;
   raw: any;
 }
 
@@ -59,7 +64,8 @@ export class LibraryComponent implements OnInit {
   showDetail = false;
 
   constructor(
-    private http: HttpClient,
+    //private http: HttpClient,
+    private simService: SimulationService,
     private auth: Auth,
     private router: Router
   ) { }
@@ -72,7 +78,8 @@ export class LibraryComponent implements OnInit {
   loadConfigs(): void {
     this.isLoading = true;
     this.errorMsg = '';
-    this.http.get<any[]>('http://localhost:5001/api/configs/user').subscribe({
+    //this.http.get<any[]>('http://localhost:5001/api/configs/user').subscribe({
+    this.simService.getMyConfigs().subscribe({
       next: (configs) => {
         this.simulations = configs.map(c => ({
           id: c.config_id ?? c._id,
@@ -91,6 +98,10 @@ export class LibraryComponent implements OnInit {
           description: c.description ?? '',
           is_adaptive: c.is_adaptive ?? false,
           snr_profile: c.parameters?.snr_profile ?? 'linear',
+          awgn: c.parameters?.awgn_variance ?? 1,
+          interference: c.parameters?.interference_power ?? 0,
+          owner_id: c.owner_id,
+          results: c.results ?? null,
           raw: c
         }));
         this.isLoading = false;
@@ -153,4 +164,88 @@ export class LibraryComponent implements OnInit {
     };
     return map[scheme] ?? '#7d8590';
   }
+  // ── Results helpers ───────────────────────────────────────────────────────────
+
+  getBerAtSnr(sim: SimulationEntry): string {
+    const results = sim.results as any;
+    if (!results?.ber || !results?.snr_db) return 'N/A';
+    const snrArr: number[] = results.snr_db;
+    const berArr: number[] = results.ber;
+    // Find the index closest to the saved SNR point
+    const idx = snrArr.reduce((best, val, i) =>
+      Math.abs(val - sim.snr) < Math.abs(snrArr[best] - sim.snr) ? i : best, 0);
+    return berArr[idx] !== undefined ? berArr[idx].toExponential(3) : 'N/A';
+  }
+
+  getEvm(sim: SimulationEntry): string {
+    const results = sim.results as any;
+    const ideal: { real: number; imag: number }[] = results?.constellation?.ideal;
+    const received: { real: number; imag: number }[] = results?.constellation?.received;
+    if (!ideal?.length || !received?.length) return 'N/A';
+
+    const len = Math.min(ideal.length, received.length);
+    let errorPower = 0;
+    let refPower = 0;
+    for (let i = 0; i < len; i++) {
+      const dReal = received[i].real - ideal[i].real;
+      const dImag = received[i].imag - ideal[i].imag;
+      errorPower += dReal * dReal + dImag * dImag;
+      refPower += ideal[i].real * ideal[i].real + ideal[i].imag * ideal[i].imag;
+    }
+    if (refPower === 0) return 'N/A';
+    return (Math.sqrt(errorPower / refPower) * 100).toFixed(2) + '%';
+  }
+
+  hasResults(sim: SimulationEntry): boolean {
+    return !!(sim.results as any)?.ber?.length;
+  }
+
+  getThroughputMbps(sim: SimulationEntry): string {
+    const raw = (sim.results as any)?.avg_throughput;
+    if (raw === undefined || raw === null) return 'N/A';
+    return (raw / 1000000).toFixed(2);
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────────
+  showConfirmDelete = false;
+  isDeleting = false;
+  deleteError = '';
+
+  isOwner(sim: SimulationEntry): boolean {
+    return sim.owner_id === this.currentUser?.id;
+  }
+
+  requestDelete(sim: SimulationEntry, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.selectedSim = sim;
+    this.showDetail = true;
+    this.showConfirmDelete = true;
+    this.deleteError = '';
+  }
+
+  cancelDelete(): void {
+    this.showConfirmDelete = false;
+    this.deleteError = '';
+  }
+
+  confirmDelete(): void {
+    if (!this.selectedSim) return;
+    this.isDeleting = true;
+    this.deleteError = '';
+
+    this.simService.deleteConfig(this.selectedSim.id).subscribe({
+      next: () => {
+        this.simulations = this.simulations.filter(s => s.id !== this.selectedSim!.id);
+        this.isDeleting = false;
+        this.showConfirmDelete = false;
+        this.closeDetail();
+      },
+      error: (err) => {
+        this.deleteError = err.error?.message ?? 'Failed to delete. Try again.';
+        this.isDeleting = false;
+      }
+    });
+  }
+
 }

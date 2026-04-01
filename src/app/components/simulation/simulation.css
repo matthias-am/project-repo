@@ -1,4 +1,6 @@
-/* ── Host / Wrapper ──────────────────────────────────────────────────────── */
+/* Seperate this, literally everything in here but it wasnt working otherwise, still try again
+
+/* ── Host / Wrapper */
 :host {
   display: block;
   min-height: 100vh;
@@ -23,7 +25,7 @@
   background-color: #0d1117;
 }
 
-/* ── Topbar ──────────────────────────────────────────────────────────────── */
+/* ── Topbar */
 .topbar {
   height: 56px !important;
   min-height: 56px !important;
@@ -107,7 +109,7 @@
   margin-left: auto;
 }
 
-/* ── Body layout ─────────────────────────────────────────────────────────── */
+/* ── Body layout  */
 .sim-body {
   display: flex;
   flex: 1;
@@ -115,7 +117,7 @@
   overflow: hidden;
 }
 
-/* ── Main content ────────────────────────────────────────────────────────── */
+/* ── Main content where sims etc appear  */
 .sim-main {
   flex: 1;
   padding: 24px;
@@ -126,7 +128,7 @@
   min-width: 0;
 }
 
-/* ── Cards ───────────────────────────────────────────────────────────────── */
+/* ── Cards used for config and charts */
 .config-card,
 .chart-card {
   background-color: #161b22 !important;
@@ -134,7 +136,7 @@
   border-radius: 12px !important;
 }
 
-/* Card header row */
+/* Card header row styling */
 mat-card-header {
   display: flex !important;
   flex-wrap: wrap;
@@ -148,6 +150,7 @@ mat-card-header .mat-mdc-card-header-text {
   min-width: 0;
 }
 
+/* Action button (save, export)*/
 .card-actions {
   display: flex;
   align-items: center;
@@ -181,7 +184,7 @@ mat-card-content {
   padding: 16px 20px 20px !important;
 }
 
-/* ── Run button ──────────────────────────────────────────────────────────── */
+/* ── Run button  */
 .run-row {
   margin-top: 20px;
   display: flex;
@@ -221,7 +224,7 @@ mat-card-content {
   margin-right: 4px;
 }
 
-/* ── Collaboration bar ───────────────────────────────────────────────────── */
+/* ── Collaboration bar
 .collab-bar {
   display: flex;
   align-items: center;
@@ -268,9 +271,9 @@ mat-card-content {
 
 .collab-avatars .collab-avatar:first-child {
   margin-left: 0;
-}
+} */
 
-/* ── Charts ──────────────────────────────────────────────────────────────── */
+/* ── Charts  */
 .chart-container {
   height: 320px;
   position: relative;
@@ -307,7 +310,7 @@ mat-card-content {
   color: #e6edf3;
 }
 
-/* ── Ready placeholder ───────────────────────────────────────────────────── */
+/* ── Ready placeholder ─ */
 .ready-placeholder {
   display: flex;
   flex-direction: column;
@@ -350,7 +353,7 @@ mat-card-content {
   max-width: 320px;
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/* ── Sidebar  */
 .sim-sidebar {
   width: 260px;
   flex-shrink: 0;
@@ -493,7 +496,7 @@ mat-card-content {
   font-style: italic;
 }
 
-/* ── Panels ──────────────────────────────────────────────────────────────── */
+/* ── slide in Panels (Save, export etc*/
 .panel-backdrop {
   position: fixed;
   inset: 0;
@@ -561,7 +564,7 @@ mat-card-content {
   color: #0d1117 !important;
 }
 
-/* ── Tag chips ───────────────────────────────────────────────────────────── */
+/* ── Tag chips  */
 .tag-section {
   display: flex;
   flex-direction: column;
@@ -830,7 +833,7 @@ mat-card-content {
   font-size: 13px;
 }
 
-/* Members */
+/* Members 
 .member-row {
   display: flex;
   align-items: center;
@@ -891,7 +894,7 @@ mat-card-content {
   text-align: center;
   padding: 20px 0;
 }
-
+ */
 /*  Scheme toggles */
 .scheme-toggles {
   display: flex;

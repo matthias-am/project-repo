@@ -82,6 +82,11 @@
           <span class="star-icon" (click)="toggleStar(sim, $event)">
             <mat-icon>{{ sim.starred ? 'star' : 'star_border' }}</mat-icon>
           </span>
+          @if (isOwner(sim)) {
+          <span class="delete-icon" (click)="requestDelete(sim, $event)">
+            <mat-icon>delete_outline</mat-icon>
+          </span>
+          }
         </div>
         <h3 class="card-name">{{ sim.name }}</h3>
         @if (sim.description) {
@@ -151,19 +156,88 @@
       <div class="detail-row"><span>SNR Range</span><strong>{{ selectedSim.snr_min }} – {{ selectedSim.snr_max }}
           dB</strong></div>
       <div class="detail-row"><span>SNR Step</span><strong>{{ selectedSim.snr_step }} dB</strong></div>
+      <div class="detail-row"><span>AWGN Variance (σ²)</span><strong>{{ selectedSim.awgn }}</strong></div>
+      <div class="detail-row"><span>Interference Power</span><strong>{{ selectedSim.interference }}</strong></div>
       <div class="detail-row"><span>Number of Bits</span><strong>{{ selectedSim.num_bits | number }}</strong></div>
       <div class="detail-row"><span>Number of Symbols</span><strong>{{ selectedSim.num_symbols | number }}</strong>
       </div>
       <div class="detail-row"><span>Saved On</span><strong>{{ selectedSim.date }}</strong></div>
     </div>
+    @if (hasResults(selectedSim)) {
+    <div class="detail-section">
+      <h4 class="detail-heading">RESULTS</h4>
+      <div class="detail-row">
+        <span>BER at {{ selectedSim.snr }} dB SNR</span>
+        <strong>{{ getBerAtSnr(selectedSim) }}</strong>
+      </div>
+      <div class="detail-row">
+        <span>Spectral Efficiency</span>
+        <strong>
+          {{ (selectedSim.results?.spectral_efficiency ?? 'N/A') }}
+          @if (selectedSim.results?.spectral_efficiency) { <span class="unit">bits/s</span> }
+        </strong>
+      </div>
+      <div class="detail-row">
+        <span>Avg Throughput</span>
+        <strong>
+          <!--{{ (selectedSim.results?.avg_throughput ?? 0) > 0
+          ? (selectedSim.results?.avg_throughput ?? 0 / 1_000_000 | number:'1.2-2')
+          : 'N/A' }}
+          @if ((selectedSim.results?.avg_throughput ?? 0) > 0) { <span class="unit">Mbps</span> }-->
+
+          {{ getThroughputMbps(selectedSim) }}
+          @if (getThroughputMbps(selectedSim) !== 'N/A') {
+          <span class="unit">Mbps</span>
+          }
+        </strong>
+      </div>
+      <div class="detail-row">
+        <span>EVM</span>
+        <strong>{{ getEvm(selectedSim) }}</strong>
+      </div>
+    </div>
+    } @else {
+    <div class="detail-section">
+      <h4 class="detail-heading">RESULTS</h4>
+      <p class="no-results-msg">No results stored — run and save the simulation to populate this section.</p>
+    </div>
+    }
 
     <div class="panel-footer">
       <button mat-stroked-button (click)="closeDetail()">Close</button>
+      @if (isOwner(selectedSim)) {
+      <button mat-stroked-button class="btn-delete" (click)="requestDelete(selectedSim)">
+        <mat-icon>delete_outline</mat-icon> Delete
+      </button>
+      }
       <button mat-flat-button class="btn-load" (click)="loadIntoSimulator()">
-        <mat-icon>play_arrow</mat-icon> Load into Simulator
+        <mat-icon>open_in_new</mat-icon> Load into Simulator
       </button>
     </div>
   </div>
   }
-
+  @if (showConfirmDelete && selectedSim) {
+  <div class="confirm-backdrop">
+    <div class="confirm-dialog">
+      <div class="confirm-header">
+        <mat-icon class="confirm-icon">warning_amber</mat-icon>
+        <h3>Delete Simulation</h3>
+      </div>
+      <p class="confirm-msg">
+        Are you sure you want to delete <strong>{{ selectedSim.name }}</strong>?
+        This action cannot be undone.
+      </p>
+      @if (deleteError) {
+      <p class="confirm-error">{{ deleteError }}</p>
+      }
+      <div class="confirm-actions">
+        <button mat-stroked-button (click)="cancelDelete()" [disabled]="isDeleting">Cancel</button>
+        <button mat-flat-button class="btn-confirm-delete" (click)="confirmDelete()" [disabled]="isDeleting">
+          <mat-icon>delete</mat-icon>
+          {{ isDeleting ? 'Deleting...' : 'Delete' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
 </div>

@@ -19,6 +19,9 @@ export interface CreateConfigPayload {
     is_adaptive?: boolean;
     snr_profile?: string;
     compare_schemes?: string[];
+    awgn_variance: number;
+    interference_power: number;
+    symbol_rate: number;
   };
   workspaceId: string;
   is_adaptive?: boolean;
@@ -47,8 +50,9 @@ export interface RunResponse {
 
 export interface RunStatusResponse {
   success: boolean;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'failed';
   progress: number;
+  statusMessage?: string;
   results: SimulationResults | null;
   error: string | null;
   startedAt: string;
@@ -100,7 +104,7 @@ export class SimulationService {
         )
       ),
       takeWhile(
-        res => res.status === 'pending' || res.status === 'running',
+        res => res.status === 'pending' || res.status === 'running' || res.status === 'queued',
         true   // emit the terminal value (completed/failed) before stopping
       )
     );
@@ -116,13 +120,27 @@ export class SimulationService {
     return this.http.post<ConfigResponse>(`${API}/configs`, payload);
   }
 
-  // Invite a user to a workspace
-  inviteToWorkspace(workspaceId: string, email: string, role: string = 'editor'): Observable<any> {
-    return this.http.post(`${API}/workspaces/${workspaceId}/invite`, { email, role });
+  //persist run results back onto the config
+  saveResults(configId: string, results: SimulationResults): Observable<any> {
+    return this.http.patch(`${API}/configs/${configId}/results`, { results });
   }
 
-  // Get workspace members
-  getWorkspaceMembers(workspaceId: string): Observable<any> {
-    return this.http.get(`${API}/workspaces/${workspaceId}/members`);
+  // fetch a single config (with results) 
+  getConfigWithResults(configId: string): Observable<any> {
+    return this.http.get(`${API}/configs/${configId}`);
   }
+
+  deleteConfig(configId: string): Observable<any> {
+    return this.http.delete(`${API}/configs/${configId}`);
+  }
+
+  //   // Invite a user to a workspace
+  //   inviteToWorkspace(workspaceId: string, email: string, role: string = 'editor'): Observable<any> {
+  //     return this.http.post(`${API}/workspaces/${workspaceId}/invite`, { email, role });
+  //   }
+
+  //   // Get workspace members
+  //   getWorkspaceMembers(workspaceId: string): Observable<any> {
+  //     return this.http.get(`${API}/workspaces/${workspaceId}/members`);
+  //   }
 }
