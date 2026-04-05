@@ -69,20 +69,22 @@ exports.createConfig = async (req, res) => { //exports as a route handler
 
 exports.getMyConfigs = async (req, res) => {
     try {
-        console.log('getMyConfigs userId:', req.user.id);
+        //console.log('getMyConfigs userId:', req.user.id);
         //get workspaces the user belongs to
         const memberships = await WSMember.find({ user_id: req.user.id }).select('workspace_id'); //Find all the user's workspace memberships (workspace_id field)
-        console.log('memberships found:', JSON.stringify(memberships));
+        // console.log('memberships found:', JSON.stringify(memberships));
 
         const workspaceIds = memberships.map(m => m.workspace_id); //maps to array of workspace IDs
-        console.log('workspaceIds:', workspaceIds);
+        // console.log('workspaceIds:', workspaceIds);
 
         if (workspaceIds.length === 0) {
             return res.json([]); //user has no workspace
         }
 
         const configs = await SimulationConfig.find({
-            workspace_id: { $in: workspaceIds } //all configs where workspace_id is in the user's workspace IDs
+            owner_id: req.user.id
+
+            // workspace_id: { $in: workspaceIds } //all configs where workspace_id is in the user's workspace IDs
 
         })
 
@@ -104,6 +106,16 @@ exports.getMyConfigs = async (req, res) => {
 exports.getConfigsByWS = async (req, res) => {
     try {
         const { workspaceId } = req.params;  //destructures workspace ID from params
+        const membership = await WorkspaceMember.findOne({
+            workspace_id: workspaceId,
+            user_id: req.user.id
+        });
+
+        if (!membership) {
+            return res.status(403).json({
+                message: 'Access denied to this workspace'
+            });
+        }
 
         const configs = await SimulationConfig.find({ workspace_id: workspaceId }) //finds all configs for the specific workspace
             //.populate('scheme_id', 'family_display_name')
@@ -215,75 +227,75 @@ exports.getConfigById = async (req, res) => {
 };
 
 //Edit config
-exports.updateConfig = async (req, res) => {
-    try {
-        const configId = req.params.configId;
-        const workspaceId = req.workspaceId;
-        const userId = req.user.id;
+// exports.updateConfig = async (req, res) => {
+//     try {
+//         const configId = req.params.configId;
+//         const workspaceId = req.workspaceId;
+//         const userId = req.user.id;
 
-        const { name, description, parameters, is_template } = req.body; //destructures update fields from the req body
+//         const { name, description, parameters, is_template } = req.body; //destructures update fields from the req body
 
-        const config = await SimulationConfig.findOne({
-            config_id: configId,
-            workspace_id: workspaceId
-        }); //finds the config to be update by config id and workspace ID
+//         const config = await SimulationConfig.findOne({
+//             config_id: configId,
+//             workspace_id: workspaceId
+//         }); //finds the config to be update by config id and workspace ID
 
-        if (!config) {
-            return res.status(404).json({ message: 'Configration not found' }); //error message if config not found
-        }
+//         if (!config) {
+//             return res.status(404).json({ message: 'Configration not found' }); //error message if config not found
+//         }
 
-        const allowedUpdates = [ //array if allowed update fields
-            'name', 'description', 'parameters', 'is_template',
-            'is_adaptive', 'adaptive_settings'
-        ];
+//         const allowedUpdates = [ //array if allowed update fields
+//             'name', 'description', 'parameters', 'is_template',
+//             'is_adaptive', 'adaptive_settings'
+//         ];
 
-        const updates = {}; //empty updates object
+//         const updates = {}; //empty updates object
 
-        allowedUpdates.forEach(field => { //loops through each allowed field 
-            if (req.body[field] !== undefined) { //checks if field provided in req
-                updates[field] = req.body[field]; //adds field to empty updates object
-            }
-        });
+//         allowedUpdates.forEach(field => { //loops through each allowed field 
+//             if (req.body[field] !== undefined) { //checks if field provided in req
+//                 updates[field] = req.body[field]; //adds field to empty updates object
+//             }
+//         });
 
-        if (Object.keys(updates).length === 0) { //checks if any updates were made
-            return res.status(400).json({ message: 'No valid fields to update' }); //400 if no updates
-        }
+//         if (Object.keys(updates).length === 0) { //checks if any updates were made
+//             return res.status(400).json({ message: 'No valid fields to update' }); //400 if no updates
+//         }
 
-        //clear settings if turning off adaptive
-        if (updates.is_adaptive === false) {
-            updates.adaptive_settings = undefined;
-        }
+//         //clear settings if turning off adaptive
+//         if (updates.is_adaptive === false) {
+//             updates.adaptive_settings = undefined;
+//         }
 
-        Object.assign(config, updates); //applies updates to config object
-        config.last_modified = new Date();
+//         Object.assign(config, updates); //applies updates to config object
+//         config.last_modified = new Date();
 
 
-        // Only lets owner update (figure out if wanna change to editor)
-        if (config.owner_id !== userId) {
-            return res.status(403).json({ message: 'Only the owner can edit this config' });
-        }
+//         // Only lets owner update (figure out if wanna change to editor)
+//         if (config.owner_id !== userId) {
+//             return res.status(403).json({ message: 'Only the owner can edit this config' });
+//         }
 
-        //Apply updates
-        if (name) config.name = name;
-        if (description !== undefined) config.description = description;
-        if (parameters) config.parameters = parameters;
-        if (is_template !== undefined) config.is_template = is_template;
+//         //Apply updates
+//         if (name) config.name = name;
+//         if (description !== undefined) config.description = description;
+//         if (parameters) config.parameters = parameters;
+//         if (is_template !== undefined) config.is_template = is_template;
 
-        config.last_modified = new Date();
-        await config.save();
+//         config.last_modified = new Date();
+//         await config.save();
 
-        //Log the update made
-        await logAction(userId, workspaceId, configId, 'update', { changeFields: Object.keys(req.body) });
+//         //Log the update made
+//         await logAction(userId, workspaceId, configId, 'update', { changeFields: Object.keys(req.body) });
 
-        res.json({ //returns success response
-            success: true,
-            message: 'Configuration updated',
-            config
-        });
-    } catch (err) {
-        res.status(500).json({ message: 'Failed to update config', error: err.message }); //returns 500 error is failed to update
-    }
-};
+//         res.json({ //returns success response
+//             success: true,
+//             message: 'Configuration updated',
+//             config
+//         });
+//     } catch (err) {
+//         res.status(500).json({ message: 'Failed to update config', error: err.message }); //returns 500 error is failed to update
+//     }
+// };
 
 //Delete a config
 exports.deleteConfig = async (req, res) => {

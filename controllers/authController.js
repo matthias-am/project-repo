@@ -16,9 +16,11 @@ exports.register = async (req, res) => {
     const { username, email, password } = req.body; //array components is the required body
 
     //mini block for debugging
-    console.log('User data before save:', req.body);
+    //console.log('User data before save:', req.body);
+
     const user = new User(req.body);
-    console.log('Mongoose document:', user.toObject());
+
+    //console.log('Mongoose document:', user.toObject());
 
     //block for email that already exists
     try {
@@ -36,13 +38,12 @@ exports.register = async (req, res) => {
 
         await user.save(); //Saves to database
 
+        //create a default workspace for user
         const workspace = await Workspace.create({
             name: 'My Workspace',
             owner: user._id,
         });
-        //debug block for JWT_secret
-        console.log('JWT_SECRET from env:', process.env.JWT_ST);
-        console.log('Type of secret:', typeof process.env.JWT_ST);
+
 
         //Checks if JWT_ST works
         if (!process.env.JWT_ST) {

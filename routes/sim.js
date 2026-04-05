@@ -11,20 +11,20 @@ router.post('/fullAnalysis', protect, requireWorkspaceAccess('editor'), simctlr.
 
 
 
-router.delete(
-  '/:id',
-  protect,
-  requireWorkspaceAccess('owner'),
-  simctlr.deleteSimulation
-);
+// router.delete(
+//   '/:id',
+//   protect,
+//   requireWorkspaceAccess('owner'),
+//   simctlr.deleteSimulation
+// );
 
 router.get('/:id/status',
   protect, //requireWorkspaceAccess('viewer'), 
   simctlr.getSimulationStatus
 );
 
-router.get('/debug-test', (req, res) => {
-  res.json({ message: 'Simulation routes are mounted correctly' });
-});
+// router.get('/debug-test', (req, res) => {
+//   res.json({ message: 'Simulation routes are mounted correctly' });
+// });
 
 module.exports = router;
