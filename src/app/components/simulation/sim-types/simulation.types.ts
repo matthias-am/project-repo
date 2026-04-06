@@ -69,7 +69,7 @@ export const BITS_PER_SYMBOL: Record<string, number> = {
 
 /** Colour assigned to each scheme badge / overlay */
 export const SCHEME_COLORS: Record<string, string> = {
-    bpsk: '#22d3ee',
+    bpsk: '#22d3ee', 
     qpsk: '#818cf8',
     '16qam': '#34d399',
     '64qam': '#f59e0b',
@@ -82,7 +82,7 @@ export const RUN_COLORS = [
     '#22d3ee', '#34d399', '#f59e0b', '#f87171',
     '#818cf8', '#fb923c', '#c084fc',
 ];
-//colors and stuff for overlays
+//default configs for BER comparison curves
 export const DEFAULT_BER_SCHEMES: BerScheme[] = [
     { key: 'simulated', label: 'Simulated', color: '#22d3ee', visible: true, dashed: false },
     { key: 'bpsk', label: 'BPSK', color: '#34d399', visible: false, dashed: true },
@@ -93,7 +93,7 @@ export const DEFAULT_BER_SCHEMES: BerScheme[] = [
     { key: '1024qam', label: '1024-QAM', color: 'rgba(255, 170, 170, 0.33)', visible: false, dashed: true },
 
 ];
-
+//schemes avail for side by side
 export const DEFAULT_COMPARE_SCHEMES: CompareScheme[] = [
     { key: 'bpsk', label: 'BPSK', selected: false },
     { key: 'qpsk', label: 'QPSK', selected: false },

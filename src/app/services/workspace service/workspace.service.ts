@@ -42,7 +42,7 @@ export class WorkspaceService {
   ensureWorkspace(): Observable<Workspace[]> {
     return this.getMyWorkspaces().pipe(
       tap((workspaces: Workspace[]) => {
-        if (workspaces.length > 0 ) {
+        if (workspaces.length > 0) {
           this.setActive(workspaces[0]._id);
         }
       })

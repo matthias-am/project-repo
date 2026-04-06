@@ -31,16 +31,16 @@ export interface RunResult {
 @Injectable({ providedIn: 'root' })
 export class SimulationRunService implements OnDestroy {
 
-  /** Emits log entries as they arrive so the component can display them. */
+  // Emits log entries as they arrive so the component can display them. //
   readonly log$ = new Subject<LogEntry>();
 
-  /** Emits once when a run completes successfully. */
+  //Emits once when a run completes successfully. 
   readonly result$ = new Subject<RunResult>();
 
-  /** Emits once when a run fails. */
+  // Emits once when a run fails. 
   readonly error$ = new Subject<string>();
 
-  /** Tracks all accumulated runs across multiple executions in the session. */
+  //Tracks all accumulated runs across multiple executions in the session. 
   accumulatedRuns: AccumulatedRun[] = [];
 
   private pollSub?: Subscription;
@@ -68,8 +68,8 @@ export class SimulationRunService implements OnDestroy {
       return;
     }
 
-    const schemeId = SCHEME_MAP[config.modulationScheme] ?? 'qpsk';
-    const modeLabel = isAdaptive ? 'Adaptive' : config.modulationScheme;
+    const schemeId = SCHEME_MAP[config.modulationScheme] ?? 'qpsk'; //look up value in scheme map, qpsk as fallback
+    const modeLabel = isAdaptive ? 'Adaptive' : config.modulationScheme; //display label depending on mode
     const selectedCompare: string[] = []; // populated from component if needed
 
     this.emit('Creating simulation configuration...', 'info');
@@ -99,8 +99,8 @@ export class SimulationRunService implements OnDestroy {
       },
     }).subscribe({
       next: (res) => {
-        this.emit('Configuration created, starting simulation...', 'info');
-        this.startRun(res.config.config_id, workspaceId, config, isAdaptive, snrProfile);
+        this.emit('Configuration created, starting simulation...', 'info'); //execution log msg
+        this.startRun(res.config.config_id, workspaceId, config, isAdaptive, snrProfile); //starts run using config id from backend
       },
       error: (err) => this.emitError(
         `Failed to create config: ${err.error?.message ?? err.message}`
@@ -108,11 +108,12 @@ export class SimulationRunService implements OnDestroy {
     });
   }
 
+  //clear all stored runs
   clearAccumulated(): void {
     this.accumulatedRuns = [];
   }
 
-  // ── Private helpers 
+  // Private helpers 
   private startRun(
     configId: string,
     workspaceId: string,
@@ -120,7 +121,7 @@ export class SimulationRunService implements OnDestroy {
     isAdaptive: boolean,
     snrProfile: string,
   ): void {
-    this.simService.runFromConfig(configId, workspaceId).subscribe({
+    this.simService.runFromConfig(configId, workspaceId).subscribe({ //calls backend to start sim run, returns observable
       next: (res) => {
         this.emit('Simulation queued, waiting for results...', 'info');
 
@@ -131,7 +132,7 @@ export class SimulationRunService implements OnDestroy {
       ),
     });
   }
-
+  //starts continous status checking
   private startPolling(
     runId: string,
     configId: string,
@@ -140,16 +141,16 @@ export class SimulationRunService implements OnDestroy {
     isAdaptive: boolean,
     snrProfile: string,
   ): void {
-    this.pollSub?.unsubscribe();
-    let processingLogged = false;
-    let busyMessageLogged = false;
+    this.pollSub?.unsubscribe(); //if already polling stop
+    let processingLogged = false; //ensure processing msg only prints once
+    let busyMessageLogged = false; //prevents repeating status msgs
 
-    this.pollSub = this.simService.pollStatus(runId, workspaceId).subscribe({
-      next: (status: RunStatusResponse) => {
+    this.pollSub = this.simService.pollStatus(runId, workspaceId).subscribe({ //calls backend repeatedly
+      next: (status: RunStatusResponse) => { //on each poll response
         console.log('[poll] runId being polled:', runId, '| status:', status.status, '| has results:', !!status.results)
         if (status.statusMessage && !busyMessageLogged) {
-          this.emit(status.statusMessage, 'info');
-          busyMessageLogged = true;
+          this.emit(status.statusMessage, 'info'); //display msg from backend
+          busyMessageLogged = true; //prevent repeat
         }
 
         if (status.status !== 'queued') {
@@ -157,24 +158,24 @@ export class SimulationRunService implements OnDestroy {
         }
 
         if (status.status === 'running' && !processingLogged) {
-          this.emit(`Processing ${config.method} iterations`, 'info');
+          this.emit(`Processing ${config.method} iterations`, 'info'); //execution log msg
           processingLogged = true;
         }
 
         if (status.status === 'completed') {
 
-          if (!status.results) {
+          if (!status.results) { //if completed but no results, return
             return;
-          } this.emit('Simulation completed successfully', 'success');
-          const raw = status.results;
-          const display = this.buildDisplayResults(raw, config);
-          this.accumulate(raw, config, isAdaptive, snrProfile);
-          this.simService.saveResults(configId, raw).subscribe({
+          } this.emit('Simulation completed successfully', 'success'); //execution log msg
+          const raw = status.results; //extract raw output
+          const display = this.buildDisplayResults(raw, config); //converts raw data -> UI-friendly summary
+          this.accumulate(raw, config, isAdaptive, snrProfile); //add this run to stored for multicurve
+          this.simService.saveResults(configId, raw).subscribe({ //send results to db
             next: () => this.emit('Results saved to library', 'info'),
             error: () => this.emit('Could not save results (non-critical)', 'info'),
           });
 
-          this.result$.next({ raw, display, accumulatedRuns: [...this.accumulatedRuns] });
+          this.result$.next({ raw, display, accumulatedRuns: [...this.accumulatedRuns] }); //emits new data via an observable
           this.pollSub?.unsubscribe();
         }
 
@@ -186,19 +187,19 @@ export class SimulationRunService implements OnDestroy {
       error: () => this.emitError('Error checking simulation status'),
     });
   }
-
+  //converts raw output into clean UI metrics
   private buildDisplayResults(
     raw: SimulationResults,
     config: SimulationConfig,
   ): DisplayResults {
     const bits = BITS_PER_SYMBOL[config.modulationScheme] ?? 2;
     return {
-      requiredSnr: config.snr,
-      spectralEfficiency: (raw as any).spectral_efficiency ?? bits,
+      requiredSnr: config.snr, //input SNR
+      spectralEfficiency: (raw as any).spectral_efficiency ?? bits, //used compute, theoretical as fallbacl
       errorRate: (raw as any).overall_ber
         ?? (raw.ber?.[(raw.ber?.length ?? 1) - 1] ?? 0),
       processingTime: (raw as any).processing_time ?? 0,
-    };
+    }; //sim time taken
   }
 
   // Adds (or updates) an entry in accumulatedRuns for multi-curve BER display.
@@ -211,25 +212,25 @@ export class SimulationRunService implements OnDestroy {
   ): void {
     const snr_db: number[] = (raw as any).snr_db ?? (raw as any).snr_values ?? [];
     const ber: number[] = raw.ber ?? [];
-    if (ber.length === 0) return;
+    if (ber.length === 0) return; //skip empty results
 
     const label = isAdaptive
       ? `Adaptive (${snrProfile})`
       : config.modulationScheme;
 
-    const existingIdx = this.accumulatedRuns.findIndex(r => r.label === label);
+    const existingIdx = this.accumulatedRuns.findIndex(r => r.label === label); //check if runs with same label already exist
     const color = existingIdx >= 0
       ? this.accumulatedRuns[existingIdx].color
       : RUN_COLORS[this.accumulatedRuns.length % RUN_COLORS.length];
 
-    const entry: AccumulatedRun = { label, color, ber, snr_db };
+    const entry: AccumulatedRun = { label, color, ber, snr_db }; //create entry
 
     if (existingIdx >= 0) {
       this.accumulatedRuns[existingIdx] = entry;
     } else {
       this.accumulatedRuns.push(entry);
     }
-  }
+  } //update existing curve or add new
 
   private emit(message: string, type: 'info' | 'success' | 'error'): void {
     const time = new Date().toLocaleTimeString('en-GB', { hour12: false });

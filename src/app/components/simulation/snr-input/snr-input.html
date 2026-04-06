@@ -7,18 +7,18 @@
       <input class="value-box" type="number" [(ngModel)]="snr" (change)="onSnrChange(snr)" [min]="-10" [max]="30"
         [step]="1" />
     </div>
-    <mat-slider [min]="-10" [max]="30" [step]="1" class="slider">
+    <mat-slider [min]="-10" [max]="30" [step]="1" class="slider"> <!--min value, max value, how much it increases/decreases by with each movement-->
       <input matSliderThumb [value]="snr" (valueChange)="onSnrChange($event)" />
     </mat-slider>
     <div class="range-labels"><span>-10 dB</span><span>30 dB</span></div>
   </div>
 
-  <!-- AWGN -->
+  <!-- AWGN Slider -->
   <div class="slider-group">
     <div class="slider-header">
       <label class="slider-label">AWGN (σ²)</label>
       <input class="value-box" type="number" [(ngModel)]="awgn" (change)="onAwgnChange(awgn)" [min]="0" [max]="10"
-        [step]="0.5" />
+        [step]="0.5" /> <!--min value, max value, how much it increases/decreases by with each movement-->
     </div>
     <mat-slider [min]="0" [max]="10" [step]="0.5" class="slider">
       <input matSliderThumb [value]="awgn" (valueChange)="onAwgnChange($event)" />
@@ -33,7 +33,7 @@
       <input class="value-box" type="number" [(ngModel)]="interference" (change)="onInterferenceChange(interference)"
         [min]="0" [max]="10" [step]="0.5" />
     </div>
-    <mat-slider [min]="0" [max]="10" [step]="0.5" class="slider">
+    <mat-slider [min]="0" [max]="10" [step]="0.5" class="slider"> <!--min value, max value, how much it increases/decreases by with each movement-->
       <input matSliderThumb [value]="interference" (valueChange)="onInterferenceChange($event)" />
     </mat-slider>
     <div class="range-labels"><span>0.0</span><span>10.0</span></div>

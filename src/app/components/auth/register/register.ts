@@ -46,20 +46,20 @@ export class RegisterComponent {
   onSubmit(): void {
     if (this.passwordMismatch) return;
 
-    this.registerError = false;
-    this.isLoading = true;
+    this.registerError = false; //resets registererror flag to false
+    this.isLoading = true; //sets the isloading flag to true
 
-    const { username, email, password } = this.fields;
+    const { username, email, password } = this.fields; //extracts from this.fields
     //after registration, ,create membership and next page is sim page
-    this.auth.register({ username, email, password }).subscribe({
+    this.auth.register({ username, email, password }).subscribe({ //call reg method from authservice, sends POST req to backend
       next: () => {
         this.isLoading = false;
-        this.router.navigate(['/simulation']);
+        this.router.navigate(['/simulation']); //when reg is successfull turn off spinner and redirect to sim page
       },
       //error messages
       error: (err: any) => {
-        this.isLoading = false;
-        this.registerError = true;
+        this.isLoading = false; //stop loading
+        this.registerError = true; //set to true
         if (err.status === 400) {
           const msg = err.error?.message || err.error?.errors?.[0]?.msg;
           this.errorMessage = msg ?? 'Registration failed. Check your details.';

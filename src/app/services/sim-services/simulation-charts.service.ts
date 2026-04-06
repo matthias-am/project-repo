@@ -11,9 +11,9 @@ import { SimulationResults } from '../sim-services/simulation.service';
 import { AccumulatedRun, BerScheme } from '../../components/simulation/sim-types/simulation.types';
 import { theoreticalBer } from '../../components/simulation/Formulas/BER';
 
-Chart.register(...registerables);
+Chart.register(...registerables); //registers built in chart components
 
-// ── Shared tick / grid colours 
+// Shared tick / grid colours 
 const TICK_COLOR = '#7d8590';
 const GRID_COLOR = 'rgba(125,133,144,0.15)';
 const LABEL_COLOR = '#e6edf3';
@@ -22,44 +22,44 @@ const LABEL_COLOR = '#e6edf3';
 export class SimulationChartsService {
 
     // ── BER chart 
-    /**
-     * (Re-)renders the BER vs SNR chart.*/
+
+    //(Re-)renders the BER vs SNR chart
     initBerChart(
-        canvas: HTMLCanvasElement,
+        canvas: HTMLCanvasElement, //where chart will be drawn
         existing: Chart | null,
         rawResults: SimulationResults | undefined,
         accumulated: AccumulatedRun[],
         berSchemes: BerScheme[],
     ): Chart {
-        existing?.destroy();
+        existing?.destroy(); //destroys existing chart
 
         const raw = rawResults as any;
         const snrValues: number[] =
-            raw?.snr_db ?? raw?.snr_values ?? Array.from({ length: 21 }, (_, i) => i);
+            raw?.snr_db ?? raw?.snr_values ?? Array.from({ length: 21 }, (_, i) => i); //snr_db if avail, else snr_values, else default 0-20
 
-        const datasets: any[] = [];
+        const datasets: any[] = []; //hold chart datasets
 
-        // ── Solid lines — one per accumulated simulated run 
-        for (const run of accumulated) {
+        // Solid lines, one per accumulated simulated run 
+        for (const run of accumulated) { //loop through each sim rin
             const snr = run.snr_db.length > 0 ? run.snr_db : snrValues;
-            datasets.push({
+            datasets.push({ //add dataset to the cart
                 label: `${run.label} (Simulated)`,
                 data: run.ber.map((y, i) => ({ x: snr[i], y })),
                 borderColor: run.color,
                 borderWidth: 2.5,
                 pointRadius: 0,
-                tension: 0.3,
+                tension: 0.3, //smooth curve
                 borderDash: [],
                 parsing: false,
             });
         }
 
-        // ── Dashed lines — theoretical overlays toggled by user 
+        //  Dashed lines theoretical overlays toggled by user 
         for (const scheme of berSchemes) {
-            if (!scheme.visible || scheme.key === 'simulated') continue;
+            if (!scheme.visible || scheme.key === 'simulated') continue; //skip hidden or invalid schemes
             datasets.push({
                 label: `${scheme.label} (Theoretical)`,
-                data: snrValues.map(s => ({ x: s, y: theoreticalBer(scheme.key, s) })),
+                data: snrValues.map(s => ({ x: s, y: theoreticalBer(scheme.key, s) })), //compute BER using theoreticalBer
                 borderColor: scheme.color,
                 borderWidth: 1.5,
                 pointRadius: 0,
@@ -69,26 +69,26 @@ export class SimulationChartsService {
             });
         }
 
-        // ── Compute tight axis bounds from actual data 
+        // Compute tight axis bounds from actual data 
         const allSnr = [
             ...accumulated.flatMap(r => r.snr_db),
-            ...snrValues,
-        ].filter(v => isFinite(v));
-        const xMin = Math.floor(Math.min(...allSnr)) - 1;
-        const xMax = Math.ceil(Math.max(...allSnr)) + 1;
+            ...snrValues, //combine all SNR values
+        ].filter(v => isFinite(v)); //remove invalid numbers
+        const xMin = Math.floor(Math.min(...allSnr)) - 1; //lower bound
+        const xMax = Math.ceil(Math.max(...allSnr)) + 1; //upper bound
 
         // collect every positive BER value across all datasets, then round
         const allBer = [
             ...accumulated.flatMap(r => r.ber),
             ...snrValues.flatMap(s =>
-                berSchemes
+                berSchemes //add theoretical BER values
                     .filter(sc => sc.visible && sc.key !== 'simulated')
                     .map(sc => theoreticalBer(sc.key, s))
             ),
-        ].filter(v => v > 1e-11 && isFinite(v));  // exclude the clamp floor
+        ].filter(v => v > 1e-11 && isFinite(v));  // //remove near zero and invalid values
 
-        const berMin = allBer.length > 0 ? Math.min(...allBer) : 1e-6;
-        const berMax = allBer.length > 0 ? Math.max(...allBer) : 0.5;
+        const berMin = allBer.length > 0 ? Math.min(...allBer) : 1e-6; //Min Ber fallback
+        const berMax = allBer.length > 0 ? Math.max(...allBer) : 0.5; //max Ber fallback
 
         // Floor to clean power of 10, but never go below 1e-8 cause lower cannot be measured by Monte Carlo with realistic bit counts anyway
         const yMin = Math.max(1e-8, Math.pow(10, Math.floor(Math.log10(berMin))));
@@ -100,14 +100,14 @@ export class SimulationChartsService {
             '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻',
         };
         const toSup = (n: number) =>
-            String(n).split('').map(ch => SUP[ch] ?? ch).join('');
+            String(n).split('').map(ch => SUP[ch] ?? ch).join(''); //conv number to superscript
 
-        return new Chart(canvas, {
+        return new Chart(canvas, { //create chart.js instance
             type: 'line',
             data: { datasets },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, //chart resizes automatically
+                maintainAspectRatio: false, //flexible resizing
                 scales: {
                     x: {
                         type: 'linear',
@@ -144,7 +144,7 @@ export class SimulationChartsService {
         });
     }
 
-    // ── Constellation chart 
+    // Constellation chart 
 
     initConstellationChart(
         canvas: HTMLCanvasElement,
@@ -156,15 +156,16 @@ export class SimulationChartsService {
         existing?.destroy();
 
         const raw = rawResults;
-        const idealPts = raw?.constellation?.ideal ?? [];
-        const rcvdPts = raw?.constellation?.received ?? [];
+        const idealPts = raw?.constellation?.ideal ?? []; //ideal points
+        const rcvdPts = raw?.constellation?.received ?? []; //recevied noisy points
 
         const toXY = (pts: { real: number; imag: number }[]) =>
-            pts.map(p => ({ x: p.real, y: p.imag }));
+            pts.map(p => ({ x: p.real, y: p.imag })); //concerts compelxt numbers to XY points
 
         const idealXY = toXY(idealPts);
         const rcvdXY = toXY(rcvdPts);
 
+        //finds closes ideal symbol using euclidean distance
         const findNearest = (
             pt: { x: number; y: number },
             ideals: { x: number; y: number }[],
@@ -172,12 +173,13 @@ export class SimulationChartsService {
             let best = ideals[0];
             let bestDist = Infinity;
             for (const ip of ideals) {
-                const d = Math.hypot(pt.x - ip.x, pt.y - ip.y);
+                const d = Math.hypot(pt.x - ip.x, pt.y - ip.y); //distance formula (root(difference in x and diff in y
                 if (d < bestDist) { bestDist = d; best = ip; }
             }
             return best;
         };
 
+        //chart plugin for custom drawing
         const overlayPlugin = {
             id: 'constellationOverlay',
             afterDatasetsDraw: (chart: any) => {
@@ -185,7 +187,7 @@ export class SimulationChartsService {
                 const xScale = chart.scales['x'];
                 const yScale = chart.scales['y'];
 
-                // Distance lines from received → nearest ideal
+                // Distance lines from received -> nearest ideal
                 if (showDistances && idealXY.length > 0 && rcvdXY.length > 0) {
                     ctx.save();
                     ctx.strokeStyle = 'rgba(251,191,36,0.4)';
