@@ -5,7 +5,7 @@ const User = require('../models/User'); //require  user schema model in folder m
 const Workspace = require('../models/Workspace');
 
 
-// function to register a new user
+// function to register a new user and create default WS
 exports.register = async (req, res) => {
     const errors = validationResult(req); //check for validtion errors from middleware
     if (!errors.isEmpty()) {

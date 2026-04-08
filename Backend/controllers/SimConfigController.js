@@ -320,10 +320,6 @@ exports.deleteConfig = async (req, res) => {
             return res.status(403).json({ message: 'Only the owner can delete this config' });
         }
 
-        // if (config.owner_id !== userId) { //checks if user is the config owner
-        //     return res.status(403).json({ message: 'Only the owner can delete this config' }); //returns 403 is user is not the owner
-        // }
-
         await SimulationConfig.deleteOne({ _id: config._id }); //deletes the config from DB
 
         await logAction(userId, config.workspace_id, config.config_id, 'delete', { name: config.name }); //logs deletion

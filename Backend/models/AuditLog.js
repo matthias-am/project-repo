@@ -30,7 +30,7 @@ const auditLogSchema = new mongoose.Schema({ //creates a new mongoose schema for
     },
     action: {
         type: String,
-        enum: ['create', 'update', 'execute', 'complete', 'fail', 'share', 'delete'],
+        enum: ['create', 'update', 'execute', 'complete', 'fail', 'share', 'delete', 'save_results'],
         required: true
     },
     details: { type: Object, default: {} },
