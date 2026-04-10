@@ -1,3 +1,6 @@
+% Proakis, John G. and Masoud Salehi, "Contemporary Communication Systems using MATLAB". Bookware Companion Series. 1999.
+
+
 function q = qfunc_approx(x)
   q = 0.5 * erfc(x / sqrt(2));
 end % Approximates the Q-function using the complementary error function (erfc).
@@ -101,8 +104,8 @@ for i = 1:length(snr_db_vec)
 current_snr = snr_db_vec(i);
 % Simple threshold switching — thresholds calibrated to actual simulated BER
 
-% Calculate effective SNR after subtracting noise and interference penalties (0.5 added cause noise effect was unrealistic)
-effective_snr = current_snr - (0.5 * (awgn_penalty_db + interference_penalty_db));
+% Calculate effective SNR after subtracting noise and interference penalties (0.4 added cause noise effect was unrealistic)
+effective_snr = current_snr - (0.4 * (awgn_penalty_db + interference_penalty_db));
 
 %Choose the highest-order scheme whose SNR threshold is met
 chosen = schemes(1); % Default to lowest scheme
@@ -142,14 +145,14 @@ effective_esn0 = effective_snr + 10 * log10(bps);
   noisy = awgn(mod_sig, effective_esn0, 'measured');
 
   % Add narrowband CW interferer if interference_power > 0
-  % if interference_power > 0
-  %   amp          = sqrt(interference_power);
+  % %if interference_power > 0
+  % amp          = sqrt(interference_power);
   %   phase_offset = 2 * pi * rand();
   %    freq_offset   = rand();  % normalized frequency 0–1
-  %   n  = (0:num_syms-1);  % proper index vector
-  %   interferer   = amp * exp(1j * (phase_offset + 2*pi * rand() * (1:num_syms)));
-  %   noisy        = noisy + interferer(:)';
-  % end
+  %    n  = (0:num_syms-1);  % proper index vector
+  %    interferer   = amp * exp(1j * (phase_offset + 2*pi * rand() * (1:num_syms)));
+  %    noisy        = noisy + interferer;
+  %  end
 
   % Demodulate
   if M <= 4
